@@ -1,0 +1,5 @@
+feedparser==6.0.10
+langchain-core==0.1.27
+langchain-openai==0.0.8
+langgraph==0.0.24
+openai==1.12.0 
