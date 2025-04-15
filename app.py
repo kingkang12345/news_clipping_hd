@@ -1,4 +1,16 @@
 import streamlit as st
+
+# ✅ 무조건 첫 Streamlit 명령어
+st.set_page_config(
+    page_title="PwC 뉴스 분석기",
+    page_icon="📊",
+    layout="wide",
+)
+
+# ✅ 이후부터는 뭐든 가능
+st.write("✅ 앱 로딩 시작됨")
+
+# ⬇ 그 아래는 기존 코드 계속 이어서
 from news_ai import collect_news, filter_news, AgentState
 import dotenv
 import os
@@ -7,19 +19,9 @@ import docx
 from docx.shared import Pt, RGBColor, Inches
 import io
 
-
-
-# 페이지 설정
-st.set_page_config(
-    page_title="PwC 뉴스 분석기",
-    page_icon="📊",
-    layout="wide",
-)
-# 그 다음부터 쓰면 됨
-st.write("✅ 앱 로딩 시작됨")
-
 # 환경 변수 로드
 dotenv.load_dotenv()
+
 
 
 # 워드 파일 생성 함수
