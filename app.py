@@ -8,7 +8,8 @@ from docx.shared import Pt, RGBColor, Inches
 import io
 import streamlit as st
 
-st.write("✅ 앱 로딩 시작됨")  
+
+
 # 환경 변수 로드
 dotenv.load_dotenv()
 
