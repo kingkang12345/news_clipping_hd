@@ -1,11 +1,3 @@
-<<<<<<< HEAD
-.env
-__pycache__/
-*.pyc
-.DS_Store
-.streamlit/secrets.toml
-venv/
-=======
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -180,4 +172,43 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
->>>>>>> a3f9e7eb0d697e2388753a728b62cc5c1f8721f6
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
+
+# Vercel
+.vercel
