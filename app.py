@@ -7,8 +7,7 @@ import docx
 from docx.shared import Pt, RGBColor, Inches
 import io
 
-# 환경 변수 로드
-dotenv.load_dotenv()
+
 
 # 페이지 설정
 st.set_page_config(
@@ -18,6 +17,10 @@ st.set_page_config(
 )
 # 그 다음부터 쓰면 됨
 st.write("✅ 앱 로딩 시작됨")
+
+# 환경 변수 로드
+dotenv.load_dotenv()
+
 
 # 워드 파일 생성 함수
 def create_word_document(keyword, filtered_news, analysis):
