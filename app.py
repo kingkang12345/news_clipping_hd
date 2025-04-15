@@ -7,8 +7,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# ✅ 이후부터는 뭐든 가능
-st.write("✅ 앱 로딩 시작됨")
 
 # ⬇ 그 아래는 기존 코드 계속 이어서
 from news_ai import collect_news, filter_news, AgentState
