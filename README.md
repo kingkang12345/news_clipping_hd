@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # PwC 뉴스 분석기
 
 회계법인 관점에서 중요한 뉴스를 자동으로 분석하는 AI 도구입니다.
@@ -44,3 +45,6 @@ git push -u origin main
    ```toml
    OPENAI_API_KEY = "your-api-key"
    ```
+=======
+# news_clipping
+>>>>>>> a3f9e7eb0d697e2388753a728b62cc5c1f8721f6
