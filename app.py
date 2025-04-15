@@ -19,6 +19,8 @@ st.set_page_config(
     page_icon="📊",
     layout="wide",
 )
+# 그 다음부터 쓰면 됨
+st.write("✅ 앱 로딩 시작됨")
 
 # 워드 파일 생성 함수
 def create_word_document(keyword, filtered_news, analysis):
