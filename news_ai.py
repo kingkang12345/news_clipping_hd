@@ -9,6 +9,7 @@ import json
 import re
 import os
 from datetime import datetime, timedelta
+import streamlit as st
 
 # 상태 타입 정의
 class AgentState(TypedDict):
@@ -25,11 +26,14 @@ def collect_news(state: AgentState) -> AgentState:
         # 검색어 설정
         keyword = state.get("keyword", "삼성전자")
         
+        # 검색 결과 수 설정
+        max_results = state.get("max_results", 20)
+        
         # GoogleNews 객체 생성
         news = GoogleNews()
         
         # 뉴스 검색
-        news_data = news.search_by_keyword(keyword, k=20)
+        news_data = news.search_by_keyword(keyword, k=max_results)
         
         # 뉴스 데이터 저장
         state["news_data"] = news_data
