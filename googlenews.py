@@ -48,9 +48,26 @@ class GoogleNews:
 
         result = []
         for news in news_list:
+            # 뉴스 제목에서 언론사 추출 (예: "제목 - 언론사명" 형식)
+            title = news["title"]
+            press = "알 수 없음"
+            
+            # "-" 또는 "–"로 구분된 경우
+            if " - " in title:
+                parts = title.split(" - ")
+                if len(parts) > 1:
+                    press = parts[-1].strip()
+                    title = " - ".join(parts[:-1]).strip()
+            elif " – " in title:
+                parts = title.split(" – ")
+                if len(parts) > 1:
+                    press = parts[-1].strip()
+                    title = " – ".join(parts[:-1]).strip()
+
             result.append({
                 "url": news["link"], 
-                "content": news["title"],
+                "content": title,
+                "press": press,
                 "date": news["published"]
             })
 
