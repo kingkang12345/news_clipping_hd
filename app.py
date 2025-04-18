@@ -1,5 +1,6 @@
 import streamlit as st
-import time  # 상단에 import 추가
+import time
+from datetime import datetime
 
 # ✅ 무조건 첫 Streamlit 명령어
 st.set_page_config(
@@ -7,6 +8,7 @@ st.set_page_config(
     page_icon="📊",
     layout="wide",
 )
+
 
 # 프롬프트 템플릿 정의
 CUSTOM_PROMPT_TEMPLATE = '''당신은 회계법인의 전문 애널리스트입니다. 아래 뉴스 목록을 분석하여 회계법인 관점에서 가장 중요한 뉴스를 선별하세요. 
@@ -54,6 +56,7 @@ CUSTOM_PROMPT_TEMPLATE = '''당신은 회계법인의 전문 애널리스트입�
 
 from news_ai import (
     collect_news,
+    filter_valid_press,
     filter_excluded_news,
     group_and_select_news,
     evaluate_importance,
@@ -98,7 +101,6 @@ def create_word_document(keyword, filtered_news, analysis):
         doc.add_paragraph(f"출처: {news['url']}")
     
     # 날짜 및 푸터 추가
-    from datetime import datetime
     current_date = datetime.now().strftime("%Y년 %m월 %d일")
     doc.add_paragraph(f"\n보고서 생성일: {current_date}")
     doc.add_paragraph("© 2024 PwC 뉴스 분석기 | 회계법인 관점의 뉴스 분석 도구")
@@ -217,11 +219,28 @@ st.markdown("""
     }
     .news-title-large {
         font-size: 1.2em;
-        font-weight: 700;
+        font-weight: 600;
         color: #000;
-        margin: 0 0 10px 0;
-        padding: 0;
-        line-height: 1.3;
+        margin-bottom: 8px;
+        line-height: 1.4;
+    }
+    .news-url {
+        color: #0077b6;
+        font-size: 0.9em;
+        margin: 5px 0 10px 0;
+        word-break: break-all;
+    }
+    .news-summary {
+        color: #444;
+        font-size: 0.95em;
+        margin: 10px 0;
+        line-height: 1.4;
+    }
+    .selection-reason {
+        color: #666;
+        font-size: 0.95em;
+        margin: 10px 0;
+        line-height: 1.4;
     }
     .importance-high {
         color: #d04a02;
@@ -246,6 +265,22 @@ st.markdown("""
         font-size: 0.9em;
         margin-top: 5px;
     }
+    .not-selected-news {
+        color: #666;
+        padding: 5px 0;
+        margin: 5px 0;
+        font-size: 0.9em;
+    }
+    .importance-low {
+        color: #666;
+        font-weight: 700;
+        margin: 5px 0;
+    }
+    .not-selected-reason {
+        color: #666;
+        margin: 5px 0;
+        font-size: 0.95em;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -268,6 +303,38 @@ COMPANIES = ["삼성", "SK", "현대차", "LG", "롯데", "포스코", "한화"]
 
 # 사이드바 설정
 st.sidebar.title("🔍 분석 설정")
+
+# 0단계: 기본 설정
+st.sidebar.markdown("### 📋 0단계: 기본 설정")
+
+# 유효 언론사 설정
+valid_press_dict = st.sidebar.text_area(
+    "📰 유효 언론사 설정",
+    value="""조선일보: ["조선일보", "chosun", "chosun.com"]
+중앙일보: ["중앙일보", "joongang", "joongang.co.kr", "joins.com"]
+동아일보: ["동아일보", "donga", "donga.com"]
+조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"]
+한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"]
+매일경제: ["매일경제", "매경", "mk", "mk.co.kr"]
+연합뉴스: ["연합뉴스", "yna", "yna.co.kr"]
+파이낸셜뉴스: ["파이낸셜뉴스", "fnnews", "fnnews.com"]
+데일리팜: ["데일리팜", "dailypharm", "dailypharm.com"]
+IT조선: ["it조선", "it.chosun.com", "itchosun"]
+머니투데이: ["머니투데이", "mt", "mt.co.kr"]
+비즈니스포스트: ["비즈니스포스트", "businesspost", "businesspost.co.kr"]
+이데일리: ["이데일리", "edaily", "edaily.co.kr"]
+아시아경제: ["아시아경제", "asiae", "asiae.co.kr"]
+뉴스핌: ["뉴스핌", "newspim", "newspim.com"]
+뉴시스: ["뉴시스", "newsis", "newsis.com"]
+헤럴드경제: ["헤럴드경제", "herald", "heraldcorp", "heraldcorp.com"]""",
+    help="분석에 포함할 신뢰할 수 있는 언론사와 그 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
+    key="valid_press_dict"
+)
+
+# 구분선 추가
+st.sidebar.markdown("---")
+
+# 1단계: 제외 판단 기준
 
 # 새로운 기업 추가 섹션
 new_company = st.sidebar.text_input(
@@ -351,7 +418,7 @@ system_prompt_1 = st.sidebar.text_area(
 # 2단계: 그룹핑 시스템 프롬프트
 system_prompt_2 = st.sidebar.text_area(
     "2단계: 그룹핑",
-    value="당신은 회계법인의 뉴스 분석 전문가입니다. 유사한 뉴스를 그룹화하고 대표성을 갖춘 기사를 선택하는 작업을 수행합니다. 특히 회계법인의 관점에서 중요한 정보를 포함하고 있는 기사를 우선적으로 선택하며, 언론사의 신뢰도와 기사의 상세도를 고려하여 대표 기사를 선정합니다.",
+    value="당신은 뉴스 분석 전문가입니다. 유사한 뉴스를 그룹화하고 대표성을 갖춘 기사를 선택하는 작업을 수행합니다. 같은 사안에 대해 숫자, 기업 ,계열사, 맥락, 주요 키워드 등이 유사하면 중복으로 판단합니다. 언론사의 신뢰도와 기사의 상세도를 고려하여 대표 기사를 선정합니다.",
     help="2단계 그룹핑에 사용되는 시스템 프롬프트를 설정하세요.",
     key="system_prompt_2",
     height=300
@@ -366,10 +433,7 @@ system_prompt_3 = st.sidebar.text_area(
     height=300
 )
 
-# 구분선 추가
 st.sidebar.markdown("---")
-
-# 1단계: 제외 판단 기준
 st.sidebar.markdown("### 📋 1단계: 제외 판단 기준")
 
 # 제외 기준 설정
@@ -390,19 +454,7 @@ exclusion_criteria = st.sidebar.text_area(
 4. 기술 성능, 품질, 테스트 관련 보도
    - 키워드: 우수성 입증, 기술력 인정, 성능 비교, 품질 테스트, 기술 성과""",
     help="분석에서 제외할 뉴스의 기준을 설정하세요.",
-    key="exclusion_criteria",
-    height=300
-)
-
-# 유효 언론사 설정
-valid_press = st.sidebar.text_area(
-    "📰 유효 언론사",
-    value="""다음 언론사의 기사만 포함합니다:
-조선일보, 중앙일보, 동아일보, 조선비즈, 한국경제, 매일경제, 연합뉴스, 파이낸셜뉴스, 데일리팜, IT조선, 
-머니투데이, 비즈니스포스트, 이데일리, 아시아경제, 뉴스핌, 뉴시스, 헤럴드경제""",
-    help="분석에 포함할 신뢰할 수 있는 언론사 목록을 설정하세요.",
-    key="valid_press",
-    height=150
+    key="exclusion_criteria"
 )
 
 # 구분선 추가
@@ -415,7 +467,6 @@ st.sidebar.markdown("### 📋 2단계: 그룹핑 기준")
 duplicate_handling = st.sidebar.text_area(
     "🔄 중복 처리 기준",
     value="""중복 뉴스가 존재할 경우 다음 우선순위로 1개만 선택하십시오:
-
 1. 언론사 우선순위 (높은 순위부터)
    - 1순위: 경제 전문지 (한국경제, 매일경제, 조선비즈, 파이낸셜뉴스)
    - 2순위: 종합 일간지 (조선일보, 중앙일보, 동아일보)
@@ -461,12 +512,13 @@ selection_criteria = st.sidebar.text_area(
    - 감사의견 관련 내용
    - 내부회계관리제도
    - 회계 감리 결과
-
-3. 기업가치 영향 정보 (높은 우선순위)
-   - 대규모 투자 계획
-   - 신규 사업 진출
-   - 주요 계약 체결
-   - 경영진 변동
+   
+3. 구조적 기업가치 변동 정보 (높은 우선순위)
+    - 신규사업/투자/계약에 대한 내용
+    - 대외 전략(정부 정책, 글로벌 파트너, 지정학 리스크 등)
+    - 기업의 새로운 사업전략 및 방향성, 신사업 등
+    - 기존 수입모델/사업구조/고객구조 변화
+    - 공급망/수요망 등 valuechain 관련 내용 (예: 대형 생산지 이전, 주력 사업군 정리 등) 
 
 4. 기업구조 변경 정보 (높은 우선순위)
    - 인수합병(M&A)
@@ -504,7 +556,7 @@ response_format = st.sidebar.text_area(
 analysis_prompt = CUSTOM_PROMPT_TEMPLATE.format(
     selection_criteria=selection_criteria,
     exclusion_criteria=exclusion_criteria,
-    valid_press=valid_press,
+    valid_press=valid_press_dict,
     duplicate_handling=duplicate_handling
 )
 
@@ -512,9 +564,6 @@ analysis_prompt = CUSTOM_PROMPT_TEMPLATE.format(
 if st.button("뉴스 분석 시작", type="primary"):
     for keyword in keywords:
         with st.spinner(f"'{keyword}' 관련 뉴스를 수집하고 분석 중입니다..."):
-            # 전체 시작 시간
-            total_start_time = time.time()
-            
             # 각 키워드별 상태 초기화
             initial_state = {
                 "news_data": [], 
@@ -532,64 +581,77 @@ if st.button("뉴스 분석 시작", type="primary"):
                 "duplicate_handling": duplicate_handling,
                 "selection_criteria": selection_criteria,
                 "system_prompt_1": system_prompt_1,
+                "user_prompt_1": "",
+                "llm_response_1": "",
                 "system_prompt_2": system_prompt_2,
-                "system_prompt_3": system_prompt_3
+                "user_prompt_2": "",
+                "llm_response_2": "",
+                "system_prompt_3": system_prompt_3,
+                "user_prompt_3": "",
+                "llm_response_3": "",
+                "not_selected_news": [],
+                "original_news_data": []
             }
             
             # 1단계: 뉴스 수집
             st.write("1단계: 뉴스 수집 중...")
-            collect_start_time = time.time()
             state_after_collection = collect_news(initial_state)
-            collect_time = time.time() - collect_start_time
             
-            # 2단계: 제외 판단
-            st.write("2단계: 제외 판단 중...")
-            filter_start_time = time.time()
-            state_after_exclusion = filter_excluded_news(state_after_collection)
-            filter_time = time.time() - filter_start_time
+            # 2단계: 유효 언론사 필터링
+            st.write("2단계: 유효 언론사 필터링 중...")
+            state_after_press_filter = filter_valid_press(state_after_collection)
             
-            # 3단계: 그룹핑
-            st.write("3단계: 그룹핑 중...")
-            group_start_time = time.time()
+            # 3단계: 제외 판단
+            st.write("3단계: 제외 판단 중...")
+            state_after_exclusion = filter_excluded_news(state_after_press_filter)
+            
+            # 4단계: 그룹핑
+            st.write("4단계: 그룹핑 중...")
             state_after_grouping = group_and_select_news(state_after_exclusion)
-            group_time = time.time() - group_start_time
             
-            # 4단계: 중요도 평가
-            st.write("4단계: 중요도 평가 중...")
-            evaluate_start_time = time.time()
+            # 5단계: 중요도 평가
+            st.write("5단계: 중요도 평가 중...")
             final_state = evaluate_importance(state_after_grouping)
-            evaluate_time = time.time() - evaluate_start_time
-            
-            # 전체 소요 시간
-            total_time = time.time() - total_start_time
-            
-            # 시간 측정 결과 표시
-            st.markdown("### ⏱️ 실행 시간 측정")
-            st.markdown(f"""
-            - 1단계 (뉴스 수집): {collect_time:.2f}초
-            - 2단계 (제외 판단): {filter_time:.2f}초
-            - 3단계 (그룹핑): {group_time:.2f}초
-            - 4단계 (중요도 평가): {evaluate_time:.2f}초
-            - **전체 소요 시간**: {total_time:.2f}초
-            """)
             
             # 키워드별 섹션 구분
             st.markdown(f"## 📊 {keyword} 분석 결과")
             
-            # 전체 뉴스 표시
-            with st.expander(f"📰 '{keyword}' 관련 전체 뉴스"):
-                for i, news in enumerate(final_state["news_data"]):
+            # 전체 뉴스 표시 (필터링 전)
+            with st.expander(f"📰 '{keyword}' 관련 전체 뉴스 (필터링 전)"):
+                for i, news in enumerate(final_state.get("original_news_data", []), 1):
                     date_str = news.get('date', '날짜 정보 없음')
+                    url = news.get('url', 'URL 정보 없음')
+                    press = news.get('press', '알 수 없음')
                     st.markdown(f"""
                     <div class="news-card">
-                        <div class="news-title">{i+1}. {news['content']}</div>
+                        <div class="news-title">{i}. {news['content']}</div>
+                        <div class="news-meta">📰 {press}</div>
                         <div class="news-date">📅 {date_str}</div>
-                        <div class="news-url">🔗 <a href="{news['url']}" target="_blank">{news['url']}</a></div>
+                        <div class="news-url">🔗 <a href="{url}" target="_blank">{url}</a></div>
                     </div>
                     """, unsafe_allow_html=True)
             
-            # 1단계: 제외/보류/유지 뉴스 표시
-            st.markdown("<div class='subtitle'>🔍 1단계: 뉴스 분류 결과</div>", unsafe_allow_html=True)
+            # 유효 언론사 필터링된 뉴스 표시
+            with st.expander(f"📰 '{keyword}' 관련 유효 언론사 뉴스"):
+                for i, news in enumerate(final_state["news_data"]):
+                    date_str = news.get('date', '날짜 정보 없음')
+                    url = news.get('url', 'URL 정보 없음')
+                    press = news.get('press', '알 수 없음')
+                    st.markdown(f"""
+                    <div class="news-card">
+                        <div class="news-title">{i+1}. {news['content']}</div>
+                        <div class="news-meta">📰 {press}</div>
+                        <div class="news-date">📅 {date_str}</div>
+                        <div class="news-url">🔗 <a href="{url}" target="_blank">{url}</a></div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # 2단계: 유효 언론사 필터링 결과 표시
+            st.markdown("<div class='subtitle'>🔍 2단계: 유효 언론사 필터링 결과</div>", unsafe_allow_html=True)
+            st.markdown(f"유효 언론사 뉴스: {len(final_state['news_data'])}개")
+            
+            # 3단계: 제외/보류/유지 뉴스 표시
+            st.markdown("<div class='subtitle'>🔍 3단계: 뉴스 분류 결과</div>", unsafe_allow_html=True)
             
             # 제외된 뉴스
             with st.expander("❌ 제외된 뉴스"):
@@ -606,8 +668,8 @@ if st.button("뉴스 분석 시작", type="primary"):
                 for news in final_state["retained_news"]:
                     st.markdown(f"<div class='excluded-news'>[{news['index']}] {news['title']}<br/>└ {news['reason']}</div>", unsafe_allow_html=True)
             
-            # 2단계: 그룹핑 결과 표시
-            st.markdown("<div class='subtitle'>🔍 2단계: 뉴스 그룹핑 결과</div>", unsafe_allow_html=True)
+            # 4단계: 그룹핑 결과 표시
+            st.markdown("<div class='subtitle'>🔍 4단계: 뉴스 그룹핑 결과</div>", unsafe_allow_html=True)
             
             with st.expander("📋 그룹핑 결과 보기"):
                 for group in final_state["grouped_news"]:
@@ -619,21 +681,56 @@ if st.button("뉴스 분석 시작", type="primary"):
                     </div>
                     """, unsafe_allow_html=True)
             
-            # 3단계: 최종 선택 결과 표시
-            st.markdown("<div class='subtitle'>🔍 3단계: 최종 선택 결과</div>", unsafe_allow_html=True)
+            # 5단계: 최종 선택 결과 표시
+            st.markdown("<div class='subtitle'>🔍 5단계: 최종 선택 결과</div>", unsafe_allow_html=True)
             
+            # 선정된 뉴스 표시
+            st.markdown("### 📰 최종 선정된 뉴스")
             for news in final_state["final_selection"]:
+                # 날짜 형식 변환
+                date_str = news.get('date', '')
+                #st.write(f"Debug - Original date string: {date_str}")  # 디버그 출력
+                
+                try:
+                    # YYYY-MM-DD 형식으로 가정
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    formatted_date = date_obj.strftime('%m/%d')
+                except Exception as e:
+                    try:
+                        # GMT 형식 시도
+                        date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                        formatted_date = date_obj.strftime('%m/%d')
+                    except Exception as e:
+                        st.write(f"Debug - Date parsing error: {str(e)}")  # 디버그 출력
+                        formatted_date = date_str if date_str else '날짜 정보 없음'
+
+                url = news.get('url', 'URL 정보 없음')
+                press = news.get('press', '언론사 정보 없음')
+                
                 st.markdown(f"""
-                <div class="selected-news">
-                    <div class="news-title-large">{news['index']}. {news['title']}</div>
-                    <div class="importance-{news['importance'].lower()}">💡 {news['importance']} 중요도</div>
-                    <div class="news-meta">📰 {news.get('press', '알 수 없음')} | 📅 {news.get('date', '날짜 정보 없음')}</div>
-                    <div class="selection-reason">{news['reason']}</div>
-                    <div class="keywords">🏷️ {', '.join(news['keywords'])}</div>
-                    <div class="affiliates">🏢 {', '.join(news['affiliates'])}</div>
-                    <div class="news-url">🔗 <a href="{news['url']}" target="_blank">{news['url']}</a></div>
-                </div>
+                    <div class="selected-news">
+                        <div class="news-title-large">{news['title']} ({formatted_date})</div>
+                        <div class="news-url">🔗 <a href="{url}" target="_blank">{url}</a></div>
+                        <div class="selection-reason">
+                            • 선별 이유: {news['reason']}
+                        </div>
+                        <div class="news-summary">
+                            • 키워드: {', '.join(news['keywords'])} | 관련 계열사: {', '.join(news['affiliates'])} | 언론사: {press}
+                        </div>
+                    </div>
                 """, unsafe_allow_html=True)
+            
+            # 선정되지 않은 뉴스 표시
+            if final_state.get("not_selected_news"):
+                with st.expander("❌ 선정되지 않은 뉴스"):
+                    for news in final_state["not_selected_news"]:
+                        st.markdown(f"""
+                        <div class="not-selected-news">
+                            <div class="news-title">{news['index']}. {news['title']}</div>
+                            <div class="importance-low">💡 중요도: {news['importance']}</div>
+                            <div class="not-selected-reason">❌ 미선정 사유: {news['reason']}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
             
             # 워드 파일 다운로드
             st.markdown("<div class='subtitle'>📥 보고서 다운로드</div>", unsafe_allow_html=True)
@@ -648,44 +745,32 @@ if st.button("뉴스 분석 시작", type="primary"):
             
             # 키워드 구분선 추가
             st.markdown("---")
-
-            # 최종 선택된 뉴스 표시
-            st.subheader("📰 최종 선정된 뉴스")
-            for news in final_state["final_selection"]:
-                with st.expander(f"🔍 {news['title']}"):
-                    st.markdown(f"**중요도**: {news['importance']}")
-                    st.markdown(f"**선정 사유**: {news['reason']}")
-                    st.markdown(f"**핵심 키워드**: {', '.join(news['keywords'])}")
-                    st.markdown(f"**관련 계열사**: {', '.join(news['affiliates'])}")
-                    st.markdown(f"**언론사**: {news['press']}")
-                    st.markdown(f"**발행일**: {news['date']}")
-                    st.markdown(f"**URL**: {news['url']}")
-
-            # 디버그 정보 표시
-            with st.expander("🔧 디버그 정보"):
-                st.subheader("1단계: 제외 판단")
-                st.markdown("**System Prompt**")
-                st.code(initial_state.get("system_prompt_1", ""), language="text")
-                st.markdown("**User Prompt**")
-                st.code(initial_state.get("user_prompt_1", ""), language="text")
-                st.markdown("**LLM Response**")
-                st.code(initial_state.get("llm_response_1", ""), language="json")
-
-                st.subheader("2단계: 그룹핑")
-                st.markdown("**System Prompt**")
-                st.code(initial_state.get("system_prompt_2", ""), language="text")
-                st.markdown("**User Prompt**")
-                st.code(initial_state.get("user_prompt_2", ""), language="text")
-                st.markdown("**LLM Response**")
-                st.code(initial_state.get("llm_response_2", ""), language="json")
-
-                st.subheader("3단계: 중요도 평가")
-                st.markdown("**System Prompt**")
-                st.code(initial_state.get("system_prompt_3", ""), language="text")
-                st.markdown("**User Prompt**")
-                st.code(initial_state.get("user_prompt_3", ""), language="text")
-                st.markdown("**LLM Response**")
-                st.code(initial_state.get("llm_response_3", ""), language="json")
+            
+            # 디버그 정보
+            with st.expander("디버그 정보"):
+                st.markdown("### 1단계: 제외 판단")
+                st.markdown("#### 시스템 프롬프트")
+                st.text(final_state.get("system_prompt_1", "없음"))
+                st.markdown("#### 사용자 프롬프트")
+                st.text(final_state.get("user_prompt_1", "없음"))
+                st.markdown("#### LLM 응답")
+                st.text(final_state.get("llm_response_1", "없음"))
+                
+                st.markdown("### 2단계: 그룹핑")
+                st.markdown("#### 시스템 프롬프트")
+                st.text(final_state.get("system_prompt_2", "없음"))
+                st.markdown("#### 사용자 프롬프트")
+                st.text(final_state.get("user_prompt_2", "없음"))
+                st.markdown("#### LLM 응답")
+                st.text(final_state.get("llm_response_2", "없음"))
+                
+                st.markdown("### 3단계: 중요도 평가")
+                st.markdown("#### 시스템 프롬프트")
+                st.text(final_state.get("system_prompt_3", "없음"))
+                st.markdown("#### 사용자 프롬프트")
+                st.text(final_state.get("user_prompt_3", "없음"))
+                st.markdown("#### LLM 응답")
+                st.text(final_state.get("llm_response_3", "없음"))
 else:
     # 초기 화면 설명
     st.markdown("""
@@ -745,6 +830,13 @@ def collect_news(state):
         # state 업데이트
         state["news_data"] = news_data
         state["filtered_news"] = news_data
+        
+        # 뉴스 목록 문자열 생성
+        news_list = ""
+        for news in news_data:
+            press = news.get('press', '알 수 없음')
+            original_index = news.get('original_index')
+            news_list += f"{original_index}. {news['content']} ({press})\n"
         
         return state
         
