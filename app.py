@@ -1,6 +1,5 @@
 import streamlit as st
-import time
-from datetime import datetime
+
 
 # ✅ 무조건 첫 Streamlit 명령어
 st.set_page_config(
@@ -10,73 +9,24 @@ st.set_page_config(
 )
 
 
-# 프롬프트 템플릿 정의
-CUSTOM_PROMPT_TEMPLATE = '''당신은 회계법인의 전문 애널리스트입니다. 아래 뉴스 목록을 분석하여 회계법인 관점에서 가장 중요한 뉴스를 선별하세요. 
-
-[선택 기준]
-{selection_criteria}
-
-[제외 대상]
-{exclusion_criteria}
-
-[응답 요구사항]
-1. 선택 기준에 부합하는 뉴스가 많다면 최대 3개까지 선택 가능합니다.
-2. 선택 기준에 부합하는 뉴스가 없다면, 그 이유를 명확히 설명해주세요.
-
-[응답 형식]
-다음과 같은 JSON 형식으로 응답해주세요:
-
-{{
-    "selected_news": [
-        {{
-            "index": 1,
-            "title": "뉴스 제목",
-            "press": "언론사명",
-            "date": "발행일자",
-            "reason": "선정 사유",
-            "keywords": ["키워드1", "키워드2"]
-        }},
-        ...
-    ],
-    "excluded_news": [
-        {{
-            "index": 2,
-            "title": "뉴스 제목",
-            "reason": "제외 사유"
-        }},
-        ...
-    ]
-}}
-
-[유효 언론사]
-{valid_press}
-
-[중복 처리 기준]
-{duplicate_handling}'''
-
-from news_ai import (
-    collect_news,
-    filter_valid_press,
-    filter_excluded_news,
-    group_and_select_news,
-    evaluate_importance,
-    AgentState
-)
-import dotenv
+import time
+from datetime import datetime, timedelta
 import os
 from PIL import Image
 import docx
 from docx.shared import Pt, RGBColor, Inches
 import io
 from googlenews import GoogleNews
-
-# 환경 변수 로드
-dotenv.load_dotenv()
-
-
+from news_ai import (
+    collect_news,
+    filter_valid_press,
+    filter_excluded_news,
+    group_and_select_news,
+    evaluate_importance,
+)
 
 # 워드 파일 생성 함수
-def create_word_document(keyword, filtered_news, analysis):
+def create_word_document(keyword, final_selection, analysis=""):
     # 새 워드 문서 생성
     doc = docx.Document()
     
@@ -85,20 +35,50 @@ def create_word_document(keyword, filtered_news, analysis):
     for run in title.runs:
         run.font.color.rgb = RGBColor(208, 74, 2)  # PwC 오렌지 색상
     
-    # 분석 결과 추가
-    doc.add_heading('회계법인 관점의 분석 결과', level=1)
-    doc.add_paragraph(analysis)
+    # 분석 요약 추가
+    if analysis:
+        doc.add_heading('회계법인 관점의 분석 결과', level=1)
+        doc.add_paragraph(analysis)
     
     # 선별된 주요 뉴스 추가
     doc.add_heading('선별된 주요 뉴스', level=1)
     
-    for i, news in enumerate(filtered_news):
+    for i, news in enumerate(final_selection):
         p = doc.add_paragraph()
-        p.add_run(f"{i+1}. {news['content']}").bold = True
+        p.add_run(f"{i+1}. {news['title']}").bold = True
+        
+        # 날짜 정보 추가
         date_str = news.get('date', '날짜 정보 없음')
         date_paragraph = doc.add_paragraph()
         date_paragraph.add_run(f"날짜: {date_str}").italic = True
-        doc.add_paragraph(f"출처: {news['url']}")
+        
+        # 선정 사유 추가
+        reason = news.get('reason', '')
+        if reason:
+            doc.add_paragraph(f"선정 사유: {reason}")
+        
+        # 키워드 추가
+        keywords = news.get('keywords', [])
+        if keywords:
+            doc.add_paragraph(f"키워드: {', '.join(keywords)}")
+        
+        # 관련 계열사 추가
+        affiliates = news.get('affiliates', [])
+        if affiliates:
+            doc.add_paragraph(f"관련 계열사: {', '.join(affiliates)}")
+        
+        # 언론사 추가
+        press = news.get('press', '알 수 없음')
+        doc.add_paragraph(f"언론사: {press}")
+        
+        # URL 추가
+        url = news.get('url', '')
+        if url:
+            doc.add_paragraph(f"출처: {url}")
+        
+        # 구분선 추가
+        if i < len(final_selection) - 1:
+            doc.add_paragraph("").add_run().add_break()
     
     # 날짜 및 푸터 추가
     current_date = datetime.now().strftime("%Y년 %m월 %d일")
@@ -281,6 +261,27 @@ st.markdown("""
         margin: 5px 0;
         font-size: 0.95em;
     }
+    .email-preview {
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 20px;
+        font-family: 'Courier New', monospace;
+        white-space: pre-wrap;
+        margin: 20px 0;
+    }
+    .copy-button {
+        background-color: #d04a02;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin: 10px 0;
+    }
+    .copy-button:hover {
+        background-color: #b33d00;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -330,6 +331,50 @@ IT조선: ["it조선", "it.chosun.com", "itchosun"]
     help="분석에 포함할 신뢰할 수 있는 언론사와 그 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
     key="valid_press_dict"
 )
+
+# 구분선 추가
+st.sidebar.markdown("---")
+
+# 날짜 필터 설정
+st.sidebar.markdown("### 📅 날짜 필터")
+
+# 현재 시간 가져오기
+now = datetime.now()
+
+# 기본 시작 날짜/시간 계산
+if now.weekday() == 0:  # 월요일인 경우
+    # 지난 금요일로 설정
+    default_start_date = now - timedelta(days=3)
+else:
+    # 어제로 설정
+    default_start_date = now - timedelta(days=1)
+
+# 기본 시작/종료 시간은 오전 8시
+default_time = datetime.strptime("08:00", "%H:%M").time()
+
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    start_date = st.date_input(
+        "시작 날짜",
+        value=default_start_date.date(),
+        help="이 날짜부터 뉴스를 검색합니다. 월요일인 경우 지난 금요일, 그 외에는 전일로 자동 설정됩니다."
+    )
+    start_time = st.time_input(
+        "시작 시간",
+        value=default_time,
+        help="시작 날짜의 구체적인 시간을 설정합니다. 기본값은 오전 8시입니다."
+    )
+with col2:
+    end_date = st.date_input(
+        "종료 날짜",
+        value=now.date(),
+        help="이 날짜까지의 뉴스를 검색합니다."
+    )
+    end_time = st.time_input(
+        "종료 시간",
+        value=default_time,
+        help="종료 날짜의 구체적인 시간을 설정합니다. 기본값은 오전 8시입니다."
+    )
 
 # 구분선 추가
 st.sidebar.markdown("---")
@@ -454,7 +499,8 @@ exclusion_criteria = st.sidebar.text_area(
 4. 기술 성능, 품질, 테스트 관련 보도
    - 키워드: 우수성 입증, 기술력 인정, 성능 비교, 품질 테스트, 기술 성과""",
     help="분석에서 제외할 뉴스의 기준을 설정하세요.",
-    key="exclusion_criteria"
+    key="exclusion_criteria",
+    height = 300
 )
 
 # 구분선 추가
@@ -504,7 +550,6 @@ selection_criteria = st.sidebar.text_area(
 1. 재무/실적 관련 정보 (최우선 순위)
    - 매출, 영업이익, 순이익 등 실적 발표
    - 재무제표 관련 정보
-   - 주가 및 시가총액 변동
    - 배당 정책 변경
 
 2. 회계/감사 관련 정보 (최우선 순위)
@@ -517,6 +562,7 @@ selection_criteria = st.sidebar.text_area(
     - 신규사업/투자/계약에 대한 내용
     - 대외 전략(정부 정책, 글로벌 파트너, 지정학 리스크 등)
     - 기업의 새로운 사업전략 및 방향성, 신사업 등
+    - 기업의 전략 방향성에 영향을 미칠 수 있는 정보
     - 기존 수입모델/사업구조/고객구조 변화
     - 공급망/수요망 등 valuechain 관련 내용 (예: 대형 생산지 이전, 주력 사업군 정리 등) 
 
@@ -553,16 +599,60 @@ response_format = st.sidebar.text_area(
 )
 
 # 최종 프롬프트 생성
-analysis_prompt = CUSTOM_PROMPT_TEMPLATE.format(
-    selection_criteria=selection_criteria,
-    exclusion_criteria=exclusion_criteria,
-    valid_press=valid_press_dict,
-    duplicate_handling=duplicate_handling
-)
+analysis_prompt = f"""
+당신은 회계법인의 전문 애널리스트입니다. 아래 뉴스 목록을 분석하여 회계법인 관점에서 가장 중요한 뉴스를 선별하세요. 
+
+[선택 기준]
+{selection_criteria}
+
+[제외 대상]
+{exclusion_criteria}
+
+[응답 요구사항]
+1. 선택 기준에 부합하는 뉴스가 많다면 최대 3개까지 선택 가능합니다.
+2. 선택 기준에 부합하는 뉴스가 없다면, 그 이유를 명확히 설명해주세요.
+
+[응답 형식]
+다음과 같은 JSON 형식으로 응답해주세요:
+
+{{
+    "selected_news": [
+        {{
+            "index": 1,
+            "title": "뉴스 제목",
+            "press": "언론사명",
+            "date": "발행일자",
+            "reason": "선정 사유",
+            "keywords": ["키워드1", "키워드2"]
+        }},
+        ...
+    ],
+    "excluded_news": [
+        {{
+            "index": 2,
+            "title": "뉴스 제목",
+            "reason": "제외 사유"
+        }},
+        ...
+    ]
+}}
+
+[유효 언론사]
+{valid_press_dict}
+
+[중복 처리 기준]
+{duplicate_handling}
+"""
 
 # 메인 컨텐츠
 if st.button("뉴스 분석 시작", type="primary"):
-    for keyword in keywords:
+    # 이메일 미리보기를 위한 전체 내용 저장
+    email_content = "[Client Intelligence]\n\n"
+    
+    # 모든 키워드 분석 결과를 저장할 딕셔너리
+    all_results = {}
+    
+    for i, keyword in enumerate(keywords, 1):
         with st.spinner(f"'{keyword}' 관련 뉴스를 수집하고 분석 중입니다..."):
             # 각 키워드별 상태 초기화
             initial_state = {
@@ -590,7 +680,10 @@ if st.button("뉴스 분석 시작", type="primary"):
                 "user_prompt_3": "",
                 "llm_response_3": "",
                 "not_selected_news": [],
-                "original_news_data": []
+                "original_news_data": [],
+                # 날짜 필터 정보 추가
+                "start_datetime": datetime.combine(start_date, start_time),
+                "end_datetime": datetime.combine(end_date, end_time)
             }
             
             # 1단계: 뉴스 수집
@@ -612,6 +705,12 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 5단계: 중요도 평가
             st.write("5단계: 중요도 평가 중...")
             final_state = evaluate_importance(state_after_grouping)
+            
+            # 키워드별 분석 결과 저장
+            all_results[keyword] = final_state["final_selection"]
+            
+            # 키워드 구분선 추가
+            st.markdown("---")
             
             # 키워드별 섹션 구분
             st.markdown(f"## 📊 {keyword} 분석 결과")
@@ -689,7 +788,6 @@ if st.button("뉴스 분석 시작", type="primary"):
             for news in final_state["final_selection"]:
                 # 날짜 형식 변환
                 date_str = news.get('date', '')
-                #st.write(f"Debug - Original date string: {date_str}")  # 디버그 출력
                 
                 try:
                     # YYYY-MM-DD 형식으로 가정
@@ -701,12 +799,12 @@ if st.button("뉴스 분석 시작", type="primary"):
                         date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
                         formatted_date = date_obj.strftime('%m/%d')
                     except Exception as e:
-                        st.write(f"Debug - Date parsing error: {str(e)}")  # 디버그 출력
                         formatted_date = date_str if date_str else '날짜 정보 없음'
 
                 url = news.get('url', 'URL 정보 없음')
                 press = news.get('press', '언론사 정보 없음')
                 
+                # 뉴스 정보 표시
                 st.markdown(f"""
                     <div class="selected-news">
                         <div class="news-title-large">{news['title']} ({formatted_date})</div>
@@ -719,6 +817,9 @@ if st.button("뉴스 분석 시작", type="primary"):
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
+                
+                # 구분선 추가
+                st.markdown("---")
             
             # 선정되지 않은 뉴스 표시
             if final_state.get("not_selected_news"):
@@ -733,15 +834,15 @@ if st.button("뉴스 분석 시작", type="primary"):
                         """, unsafe_allow_html=True)
             
             # 워드 파일 다운로드
-            st.markdown("<div class='subtitle'>📥 보고서 다운로드</div>", unsafe_allow_html=True)
-            doc = create_word_document(keyword, final_state["filtered_news"], final_state["analysis"])
-            docx_bytes = get_binary_file_downloader_html(doc, f"PwC_{keyword}_뉴스분석.docx")
-            st.download_button(
-                label=f"📎 {keyword} 분석 보고서 다운로드",
-                data=docx_bytes,
-                file_name=f"PwC_{keyword}_뉴스분석.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+            # st.markdown("<div class='subtitle'>📥 보고서 다운로드</div>", unsafe_allow_html=True)
+            # doc = create_word_document(keyword, final_state["final_selection"], final_state["analysis"])
+            # docx_bytes = get_binary_file_downloader_html(doc, f"PwC_{keyword}_뉴스분석.docx")
+            # st.download_button(
+            #     label=f"📎 {keyword} 분석 보고서 다운로드",
+            #     data=docx_bytes,
+            #     file_name=f"PwC_{keyword}_뉴스분석.docx",
+            #     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            # )
             
             # 키워드 구분선 추가
             st.markdown("---")
@@ -771,6 +872,130 @@ if st.button("뉴스 분석 시작", type="primary"):
                 st.text(final_state.get("user_prompt_3", "없음"))
                 st.markdown("#### LLM 응답")
                 st.text(final_state.get("llm_response_3", "없음"))
+            
+            # 이메일 내용 추가
+            email_content += f"{i}. {keyword}\n"
+            for news in final_state["final_selection"]:
+                # 날짜 형식 변환
+                date_str = news.get('date', '')
+                try:
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    formatted_date = date_obj.strftime('%m/%d')
+                except Exception as e:
+                    try:
+                        date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                        formatted_date = date_obj.strftime('%m/%d')
+                    except Exception as e:
+                        formatted_date = date_str if date_str else '날짜 정보 없음'
+                
+                url = news.get('url', '')
+                email_content += f"  - {news['title']} ({formatted_date}) {url}\n"
+            email_content += "\n"
+            
+            # 키워드 구분선 추가
+            st.markdown("---")
+
+    # 모든 키워드 분석이 끝난 후 이메일 미리보기 섹션 추가
+    st.markdown("<div class='subtitle'>📧 이메일 미리보기</div>", unsafe_allow_html=True)
+    
+    # HTML 형식으로 이메일 미리보기 생성
+    html_email_content = "<div style='font-family: Arial, sans-serif; max-width: 800px; font-size: 14px; line-height: 1.5;'>"
+    html_email_content += "<div style='font-size: 14px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000;'>[Client Intelligence]</div>"
+    
+    # 일반 텍스트 버전 생성 (복사용)
+    plain_email_content = "[Client Intelligence]\n\n"
+    
+    for i, keyword in enumerate(keywords, 1):
+        # HTML 버전에서 키워드를 파란색으로 표시
+        html_email_content += f"<div style='font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 10px; color: #0000FF;'>{i}. {keyword}</div>"
+        html_email_content += "<ul style='list-style-type: none; padding-left: 20px; margin: 0;'>"
+        
+        # 텍스트 버전에서도 키워드 구분을 위해 줄바꿈 추가
+        plain_email_content += f"{i}. {keyword}\n"
+        
+        # 해당 키워드의 뉴스 가져오기
+        news_list = all_results.get(keyword, [])
+        
+        for news in news_list:
+            # 날짜 형식 변환
+            date_str = news.get('date', '')
+            try:
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                formatted_date = date_obj.strftime('%m/%d')
+            except Exception as e:
+                try:
+                    date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                    formatted_date = date_obj.strftime('%m/%d')
+                except Exception as e:
+                    formatted_date = date_str if date_str else '날짜 정보 없음'
+            
+            url = news.get('url', '')
+            title = news.get('title', '')
+            
+            # HTML 버전 - 링크를 [파일 링크]로 표시하고 글자 크기 통일, 본문 bold 처리
+            html_email_content += f"<li style='margin-bottom: 8px; font-size: 14px;'><span style='font-weight: bold;'>- {title} ({formatted_date})</span> <a href='{url}' style='color: #1a0dab; text-decoration: none;'>[기사 링크]</a></li>"
+            
+            # 텍스트 버전 - 링크를 [파일 링크]로 표시하고 실제 URL은 그 다음 줄에
+            plain_email_content += f"  - {title} ({formatted_date}) [기사 링크]\n    {url}\n"
+        
+        html_email_content += "</ul>"
+        plain_email_content += "\n"
+    
+    html_email_content += "</div>"
+    
+    # 이메일 미리보기 스타일 추가
+    st.markdown("""
+    <style>
+    .email-preview {
+        background-color: white;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 20px;
+        margin: 20px 0;
+        overflow-y: auto;
+        max-height: 500px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # 이메일 미리보기 표시
+    st.markdown(f"<div class='email-preview'>{html_email_content}</div>", unsafe_allow_html=True)
+    
+    # 복사 및 다운로드 옵션을 위한 컨테이너
+    st.markdown("### 📋 내용 복사하기")
+    
+    tab1, tab2 = st.tabs(["HTML 형식", "텍스트 형식"])
+    
+    with tab1:
+        st.code(html_email_content, language="html")
+        st.caption("위 내용을 복사하여 HTML을 지원하는 이메일 편집기에 붙여넣기 하세요.")
+    
+    with tab2:
+        st.code(plain_email_content, language="text")
+        st.caption("위 내용을 복사하여 일반 텍스트 이메일에 붙여넣기 하세요.")
+    
+    # 파일로 저장 옵션
+    st.markdown("### 💾 파일로 저장하기")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.download_button(
+            label="📥 HTML 파일로 저장",
+            data=html_email_content,
+            file_name="client_intelligence.html",
+            mime="text/html",
+            help="HTML 파일로 저장합니다."
+        )
+    
+    with col2:
+        st.download_button(
+            label="📥 텍스트 파일로 저장",
+            data=plain_email_content,
+            file_name="client_intelligence.txt",
+            mime="text/plain",
+            help="텍스트 파일로 저장합니다."
+        )
+
 else:
     # 초기 화면 설명
     st.markdown("""
@@ -780,66 +1005,36 @@ else:
     
     #### 주요 기능:
     1. 최신 뉴스 자동 수집 (기본 50개)
-    2. 3단계 AI 기반 뉴스 분석 프로세스
+    2. 신뢰할 수 있는 언론사 필터링(함수로 설정, AI아님)
+    3. 3단계 AI 기반 뉴스 분석 프로세스
        - 1단계: 제외/보류/유지 판단
        - 2단계: 유사 뉴스 그룹핑 및 대표 기사 선정
        - 3단계: 중요도 평가 및 최종 선정
-    3. 회계법인 관점의 주요 뉴스 선별
-    4. 선별된 뉴스에 대한 전문가 분석
+    4. 선별된 뉴스에 대한 상세 정보 제공
+       - 제목 및 날짜(MM/DD)
+       - 원문 링크
+       - 선별 이유
+       - 키워드, 관련 계열사, 언론사 정보
     5. 분석 결과 워드 문서로 다운로드
     
     #### 사용 방법:
     1. 사이드바에서 분석할 기업을 선택하세요 (최대 10개)
-    2. GPT 모델을 선택하세요 (gpt-4o, gpt-4-turbo 등)
-    3. 검색할 뉴스 수를 설정하세요 (10-50개, 기본 50개)
-    4. 각 단계별 시스템 프롬프트를 확인/수정하세요
-    5. "뉴스 분석 시작" 버튼을 클릭하세요
+       - 기본 제공 기업 목록에서 선택
+       - 새로운 기업 직접 추가 가능
+    2. GPT 모델을 선택하세요
+       - gpt-4o: 빠르고 실시간 (기본값)
+    3. 검색할 뉴스 수를 설정하세요 (10-50개)
+    4. "뉴스 분석 시작" 버튼을 클릭하세요
     
-    #### 분석 기준 설정:
-    - 제외 기준: 분석에서 제외할 뉴스의 기준
-    - 유효 언론사: 신뢰할 수 있는 언론사 목록
-    - 중복 처리 기준: 중복 뉴스 처리 우선순위
-    - 선택 기준: 중요 뉴스 선정 기준
-    - 응답 형식: 분석 결과 출력 형식
+    #### 분석 결과:
+    - 전체 수집 뉴스 목록
+    - 유효 언론사 필터링 결과
+    - 제외/보류/유지 분류 결과
+    - 그룹핑 및 대표기사 선정 결과
+    - 최종 선정된 중요 뉴스
+      (제목, 날짜, 링크, 선별이유, 키워드/계열사/언론사 정보)
     """)
 
 # 푸터
 st.markdown("---")
 st.markdown("© 2024 PwC 뉴스 분석기 | 회계법인 관점의 뉴스 분석 도구")
-
-def collect_news(state):
-    """뉴스를 수집하고 state를 업데이트하는 함수"""
-    try:
-        # 검색어 설정
-        keyword = state.get("keyword", "삼성전자")
-        
-        # 검색 결과 수 설정
-        max_results = state.get("max_results", 50)
-        
-        # GoogleNews 객체 생성
-        news = GoogleNews()
-        
-        # 뉴스 검색
-        news_data = news.search_by_keyword(keyword, k=max_results)
-        
-        # 수집된 뉴스가 없는 경우
-        if not news_data:
-            st.error("수집된 뉴스가 없습니다. 다른 키워드로 시도해보세요.")
-            return state
-        
-        # state 업데이트
-        state["news_data"] = news_data
-        state["filtered_news"] = news_data
-        
-        # 뉴스 목록 문자열 생성
-        news_list = ""
-        for news in news_data:
-            press = news.get('press', '알 수 없음')
-            original_index = news.get('original_index')
-            news_list += f"{original_index}. {news['content']} ({press})\n"
-        
-        return state
-        
-    except Exception as e:
-        st.error(f"뉴스 수집 중 오류가 발생했습니다: {str(e)}")
-        return state
