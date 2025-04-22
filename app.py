@@ -898,7 +898,7 @@ if st.button("뉴스 분석 시작", type="primary"):
     # 모든 키워드 분석이 끝난 후 이메일 미리보기 섹션 추가
     st.markdown("<div class='subtitle'>📧 이메일 미리보기</div>", unsafe_allow_html=True)
     
-    # HTML 형식으로 이메일 미리보기 생성
+    # HTML 버전 생성
     html_email_content = "<div style='font-family: Arial, sans-serif; max-width: 800px; font-size: 14px; line-height: 1.5;'>"
     html_email_content += "<div style='font-size: 14px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000;'>[Client Intelligence]</div>"
     
@@ -941,6 +941,10 @@ if st.button("뉴스 분석 시작", type="primary"):
         html_email_content += "</ul>"
         plain_email_content += "\n"
     
+    # 서명 추가
+    html_email_content += "<div style='margin-top: 20px; font-size: 14px;'><br>감사합니다.<br>Client & Market 드림</div>"
+    plain_email_content += "\n감사합니다.\nClient & Market 드림"
+    
     html_email_content += "</div>"
     
     # 이메일 미리보기 스타일 추가
@@ -961,40 +965,40 @@ if st.button("뉴스 분석 시작", type="primary"):
     # 이메일 미리보기 표시
     st.markdown(f"<div class='email-preview'>{html_email_content}</div>", unsafe_allow_html=True)
     
-    # 복사 및 다운로드 옵션을 위한 컨테이너
-    st.markdown("### 📋 내용 복사하기")
+    # # 복사 및 다운로드 옵션을 위한 컨테이너
+    # st.markdown("### 📋 내용 복사하기")
     
-    tab1, tab2 = st.tabs(["HTML 형식", "텍스트 형식"])
+    # tab1, tab2 = st.tabs(["HTML 형식", "텍스트 형식"])
     
-    with tab1:
-        st.code(html_email_content, language="html")
-        st.caption("위 내용을 복사하여 HTML을 지원하는 이메일 편집기에 붙여넣기 하세요.")
+    # with tab1:
+    #     st.code(html_email_content, language="html")
+    #     st.caption("위 내용을 복사하여 HTML을 지원하는 이메일 편집기에 붙여넣기 하세요.")
     
-    with tab2:
-        st.code(plain_email_content, language="text")
-        st.caption("위 내용을 복사하여 일반 텍스트 이메일에 붙여넣기 하세요.")
+    # with tab2:
+    #     st.code(plain_email_content, language="text")
+    #     st.caption("위 내용을 복사하여 일반 텍스트 이메일에 붙여넣기 하세요.")
     
-    # 파일로 저장 옵션
-    st.markdown("### 💾 파일로 저장하기")
-    col1, col2 = st.columns(2)
+    # # 파일로 저장 옵션
+    # st.markdown("### 💾 파일로 저장하기")
+    # col1, col2 = st.columns(2)
     
-    with col1:
-        st.download_button(
-            label="📥 HTML 파일로 저장",
-            data=html_email_content,
-            file_name="client_intelligence.html",
-            mime="text/html",
-            help="HTML 파일로 저장합니다."
-        )
+    # with col1:
+    #     st.download_button(
+    #         label="📥 HTML 파일로 저장",
+    #         data=html_email_content,
+    #         file_name="client_intelligence.html",
+    #         mime="text/html",
+    #         help="HTML 파일로 저장합니다."
+    #     )
     
-    with col2:
-        st.download_button(
-            label="📥 텍스트 파일로 저장",
-            data=plain_email_content,
-            file_name="client_intelligence.txt",
-            mime="text/plain",
-            help="텍스트 파일로 저장합니다."
-        )
+    # with col2:
+    #     st.download_button(
+    #         label="📥 텍스트 파일로 저장",
+    #         data=plain_email_content,
+    #         file_name="client_intelligence.txt",
+    #         mime="text/plain",
+    #         help="텍스트 파일로 저장합니다."
+    #     )
 
 else:
     # 초기 화면 설명
