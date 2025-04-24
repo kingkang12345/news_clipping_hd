@@ -899,11 +899,18 @@ if st.button("뉴스 분석 시작", type="primary"):
     st.markdown("<div class='subtitle'>📧 이메일 미리보기</div>", unsafe_allow_html=True)
     
     # HTML 버전 생성
+    
+    
     html_email_content = "<div style='font-family: Arial, sans-serif; max-width: 800px; font-size: 14px; line-height: 1.5;'>"
+    
+    html_email_content += "<div style='margin-top: 20px; font-size: 14px;'>안녕하세요, 좋은 아침입니다!<br>오늘의 Client Intelligence 전달 드립니다.<br><br></div>"
+    plain_email_content = "\n안녕하세요, 좋은 아침입니다!\n오늘의 Client Intelligence 전달 드립니다."
+    
+    
     html_email_content += "<div style='font-size: 14px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000;'>[Client Intelligence]</div>"
     
     # 일반 텍스트 버전 생성 (복사용)
-    plain_email_content = "[Client Intelligence]\n\n"
+    plain_email_content += "[Client Intelligence]\n\n"
     
     for i, keyword in enumerate(keywords, 1):
         # HTML 버전에서 키워드를 파란색으로 표시
