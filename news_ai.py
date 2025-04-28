@@ -166,8 +166,8 @@ def collect_news(state: AgentState) -> AgentState:
         # 검색어 설정
         keyword = state.get("keyword", "삼성")
         
-        # 검색 결과 수 설정 (state에서 가져옴)
-        max_results = state.get("max_results", 50)
+        # 검색 결과 수는 항상 100개
+        max_results = 100
         
         # 날짜 범위 가져오기
         start_datetime = state.get("start_datetime")
@@ -231,82 +231,55 @@ def filter_valid_press(state: AgentState) -> AgentState:
     """유효 언론사 필터링"""
     news_data = state.get("news_data", [])
     
-    # Get keyword and max_results from state
-    keyword = state.get("keyword", "삼성")  # Default to "삼성" if not specified
-    max_results = state.get("max_results", 50)  # Default to 50 if not specified
-    
     # UI에서 설정한 유효 언론사 목록 사용
     valid_press_config = state.get("valid_press_dict", {})
     if not valid_press_config:
         # 기본값으로 하드코딩된 값 사용
         valid_press_config = TRUSTED_PRESS_ALIASES
     
-    # 유효 언론사 뉴스 필터링
-    valid_press_news = []
-    for news in news_data:
-        press = news.get("press", "").lower()
-        url = news.get("url", "").lower()
-        
-        # 언론사명이나 URL이 신뢰할 수 있는 언론사 목록에 포함되는지 확인
-        is_valid = False
-        for main_press, aliases in valid_press_config.items():
-            domain = urlparse(url).netloc.lower()
-            if any(alias.lower() == press for alias in aliases) or \
-               any(alias.lower() == domain for alias in aliases):
-                is_valid = True
-                break
-        
-        if is_valid:
-            valid_press_news.append(news)
+    # 뉴스를 50개씩 2개 그룹으로 나누기
+    first_batch = news_data[:50]
+    second_batch = news_data[50:]
     
-    # 결과 출력
-    print(f"\n유효 언론사 목록: {list(valid_press_config.keys())}")
-    print(f"총 뉴스 수: {len(news_data)}")
-    print(f"유효 언론사 뉴스 수: {len(valid_press_news)}")
+    print(f"\n전체 수집된 뉴스 수: {len(news_data)}")
+    print(f"첫 번째 배치 크기: {len(first_batch)}")
+    print(f"두 번째 배치 크기: {len(second_batch)}")
     
-    # 유효 언론사 뉴스가 10개 미만인 경우 추가 수집
-    if len(valid_press_news) < 10:
-        print(f"\n유효 언론사 뉴스가 10개 미만({len(valid_press_news)}개)이므로 추가 수집을 시작합니다...")
+    # 유효 언론사 뉴스 필터링 함수
+    def filter_batch(batch):
+        valid_news = []
+        for news in batch:
+            press = news.get("press", "").lower()
+            url = news.get("url", "").lower()
+            
+            # 언론사명이나 URL이 신뢰할 수 있는 언론사 목록에 포함되는지 확인
+            is_valid = False
+            for main_press, aliases in valid_press_config.items():
+                domain = urlparse(url).netloc.lower()
+                if any(alias.lower() == press for alias in aliases) or \
+                   any(alias.lower() == domain for alias in aliases):
+                    is_valid = True
+                    break
+            
+            if is_valid:
+                valid_news.append(news)
+        return valid_news
+    
+    # 첫 번째 배치 처리
+    valid_press_news = filter_batch(first_batch)
+    print(f"\n첫 번째 배치 유효 언론사 뉴스 수: {len(valid_press_news)}")
+    
+    # 10개 미만이면 두 번째 배치 처리
+    if len(valid_press_news) < 10 and second_batch:
+        print("\n첫 번째 배치에서 유효 뉴스가 10개 미만이어서 두 번째 배치를 처리합니다...")
+        additional_valid_news = filter_batch(second_batch)
         
-        # GoogleNews 객체 생성
-        news_collector = GoogleNews()
+        # 중복 제거하면서 추가
+        for news in additional_valid_news:
+            if not any(existing_news['url'] == news['url'] for existing_news in valid_press_news):
+                valid_press_news.append(news)
         
-        # 추가 수집 시도 (최대 3번)
-        for attempt in range(3):
-            # 추가 뉴스 수집 (기존 max_results의 1.5배)
-            additional_news = news_collector.search_by_keyword(keyword, k=int(max_results * 1.5))
-            
-            # 원래 인덱스 추가
-            for i, news_item in enumerate(additional_news, len(news_data) + 1):
-                news_item['original_index'] = i
-            
-            # 추가 수집된 뉴스에 대해 유효 언론사 필터링
-            for add_news in additional_news:
-                add_press = add_news.get("press", "").lower()
-                add_url = add_news.get("url", "").lower()
-                
-                add_is_valid = False
-                for main_press, aliases in valid_press_config.items():
-                    add_domain = urlparse(add_url).netloc.lower()
-                    if any(alias.lower() == add_press for alias in aliases) or \
-                       any(alias.lower() == add_domain for alias in aliases):
-                        add_is_valid = True
-                        break
-                
-                if add_is_valid:
-                    # 이미 필터링된 리스트에 있는지 중복 확인 후 추가
-                    if not any(existing_news['url'] == add_news['url'] for existing_news in valid_press_news):
-                         valid_press_news.append(add_news)
-            
-            print(f"추가 수집 시도 {attempt + 1}: {len(valid_press_news)}개의 유효 언론사 뉴스")
-            
-            # 20개 이상이면 중단
-            if len(valid_press_news) >= 20:
-                break
-            
-            # 마지막 시도가 아니면 잠시 대기
-            if attempt < 2:
-                time.sleep(1)
+        print(f"두 번째 배치 처리 후 총 유효 언론사 뉴스 수: {len(valid_press_news)}")
     
     # 최종 결과 출력
     print(f"\n최종 유효 언론사 뉴스 수: {len(valid_press_news)}")
@@ -314,7 +287,7 @@ def filter_valid_press(state: AgentState) -> AgentState:
     # 유효 언론사 뉴스가 없는 경우
     if not valid_press_news:
         print("유효 언론사의 뉴스가 없습니다.")
-        state["news_data"] = [] # 빈 리스트로 업데이트
+        state["news_data"] = []
         return state
     
     # state 업데이트
