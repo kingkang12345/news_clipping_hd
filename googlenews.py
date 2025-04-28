@@ -41,25 +41,12 @@ class GoogleNews:
         # 결과 가공
         result = []
         for entry in news_data.entries[:k]:
-            # 뉴스 제목에서 언론사 추출 (예: "제목 - 언론사명" 형식)
-            title = entry.title
-            press = "알 수 없음"
+            # source 태그에서 직접 언론사 정보 추출
+            press = entry.get('source', {}).get('title', '알 수 없음')
             
-            # "-" 또는 "–"로 구분된 경우
-            if " - " in title:
-                parts = title.split(" - ")
-                if len(parts) > 1:
-                    press = parts[-1].strip()
-                    title = " - ".join(parts[:-1]).strip()
-            elif " – " in title:
-                parts = title.split(" – ")
-                if len(parts) > 1:
-                    press = parts[-1].strip()
-                    title = " – ".join(parts[:-1]).strip()
-
             result.append({
                 "url": entry.link, 
-                "content": title,
+                "content": entry.title,  # 제목은 그대로 사용
                 "press": press,
                 "date": entry.get('published', '날짜 정보 없음')
             })
