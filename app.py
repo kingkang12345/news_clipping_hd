@@ -437,16 +437,8 @@ st.sidebar.markdown(f"""
 # 구분선 추가
 st.sidebar.markdown("---")
 
-# 검색 결과 수 선택
-max_results = st.sidebar.selectbox(
-    "검색할 뉴스 수",
-    options=[10, 20, 30, 40, 50],
-    index=4,  # 기본값을 50으로 설정 (index=4)
-    help="검색할 뉴스의 최대 개수를 선택하세요."
-)
-
-# 구분선 추가
-st.sidebar.markdown("---")
+# 검색 결과 수 - 고정 값으로 설정
+max_results = 100
 
 # 시스템 프롬프트 설정
 st.sidebar.markdown("### 🤖 시스템 프롬프트")
@@ -660,7 +652,6 @@ if st.button("뉴스 분석 시작", type="primary"):
                 "filtered_news": [], 
                 "analysis": "", 
                 "keyword": keyword, 
-                "max_results": max_results,
                 "model": selected_model,
                 "excluded_news": [],
                 "borderline_news": [],
