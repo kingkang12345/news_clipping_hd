@@ -237,18 +237,12 @@ def filter_valid_press(state: AgentState) -> AgentState:
         # 기본값으로 하드코딩된 값 사용
         valid_press_config = TRUSTED_PRESS_ALIASES
     
-    # 뉴스를 50개씩 2개 그룹으로 나누기
-    first_batch = news_data[:50]
-    second_batch = news_data[50:]
-    
     print(f"\n전체 수집된 뉴스 수: {len(news_data)}")
-    print(f"첫 번째 배치 크기: {len(first_batch)}")
-    print(f"두 번째 배치 크기: {len(second_batch)}")
     
     # 유효 언론사 뉴스 필터링 함수
-    def filter_batch(batch):
+    def filter_news(news_list):
         valid_news = []
-        for news in batch:
+        for news in news_list:
             press = news.get("press", "").lower()
             url = news.get("url", "").lower()
             
@@ -265,24 +259,9 @@ def filter_valid_press(state: AgentState) -> AgentState:
                 valid_news.append(news)
         return valid_news
     
-    # 첫 번째 배치 처리
-    valid_press_news = filter_batch(first_batch)
-    print(f"\n첫 번째 배치 유효 언론사 뉴스 수: {len(valid_press_news)}")
-    
-    # 10개 미만이면 두 번째 배치 처리
-    if len(valid_press_news) < 10 and second_batch:
-        print("\n첫 번째 배치에서 유효 뉴스가 10개 미만이어서 두 번째 배치를 처리합니다...")
-        additional_valid_news = filter_batch(second_batch)
-        
-        # 중복 제거하면서 추가
-        for news in additional_valid_news:
-            if not any(existing_news['url'] == news['url'] for existing_news in valid_press_news):
-                valid_press_news.append(news)
-        
-        print(f"두 번째 배치 처리 후 총 유효 언론사 뉴스 수: {len(valid_press_news)}")
-    
-    # 최종 결과 출력
-    print(f"\n최종 유효 언론사 뉴스 수: {len(valid_press_news)}")
+    # 모든 뉴스를 한 번에 처리
+    valid_press_news = filter_news(news_data)
+    print(f"\n유효 언론사 뉴스 수: {len(valid_press_news)}")
     
     # 유효 언론사 뉴스가 없는 경우
     if not valid_press_news:
