@@ -967,35 +967,14 @@ if st.button("뉴스 분석 시작", type="primary"):
                 
                 # 6단계: 재평가 정보 추가
                 if final_state.get("is_reevaluated", False):
-                    st.markdown("### 6단계: 재평가")
+                    st.markdown("### 4단계: 재평가")
                     st.markdown("#### 시스템 프롬프트")
-                    st.text("""
-당신은 회계법인의 뉴스 분석 전문가입니다. 현재 선정된 뉴스가 없어 재평가가 필요합니다.
-아래 3가지 방향으로 뉴스를 재검토하세요:
-
-1. 제외 조건 재평가:
-- 제외 기준을 유연하게 적용하여, 회계법인의 관점에서 재무적 관점으로 해석 가능한 기사들을 보류로 분류
-- 특히 기업의 재정 혹은 전략적 변동과 연관된 기사를 보류로 전환
-
-2. 중복 제거 재평가:
-- 중복 기사 중에서도 언론사의 신뢰도나 기사 내용을 추가로 고려하여 가능한 경우 추가적으로 선택
-- 재무적/전략적 관점에서 추가 정보를 제공하는 기사 우선 선택
-
-3. 중요도 재평가:
-- 선택 기준을 일부 충족하지 않는 기사일지라도 기업명과 관련된 재정적 또는 전략적 변동에 대해서는 중요도를 '중'으로 평가
-- 필요하다면 중요도 '하'도 고려하여 최소 2개의 기사를 선정
-
-⚠️ 매우 중요한 지시사항 ⚠️
-1. 반드시 최소 2개 이상의 기사를 선정해야 합니다.
-2. 언론사와 기사 내용을 고려하여 선정 기준을 대폭 완화하세요.
-3. 원래 '제외'로 분류했던 기사 중에서도 회계법인 관점에서 조금이라도 가치가 있는 내용이 있다면 재검토하세요.
-4. 어떤 경우에도 2개 미만의 기사를 선정하지 마세요. 이는 절대적인 요구사항입니다.
-5. 모든 기사가 부적합하다고 판단되더라도 그 중에서 가장 나은 2개는 선정해야 합니다.
-                    """)
+                    # 실제 사용된 재평가 시스템 프롬프트 표시
+                    st.text(reevaluation_state.get("system_prompt_3", "없음") if 'reevaluation_state' in locals() else "재평가 프롬프트 정보 없음")
                     st.markdown("#### 사용자 프롬프트")
-                    st.text("원본 뉴스 데이터에서 회계법인 관점 기준을 완화하여 최소 2개 이상 선정")
-                    st.markdown("#### 재평가 결과")
-                    st.text(f"재평가 결과 {len(final_state['final_selection'])}개의 뉴스가 선택되었습니다.")
+                    st.text(reevaluation_state.get("user_prompt_3", "없음") if 'reevaluation_state' in locals() else "재평가 사용자 프롬프트 정보 없음")
+                    st.markdown("#### LLM 응답")
+                    st.text(reevaluation_state.get("llm_response_3", "없음") if 'reevaluation_state' in locals() else "재평가 LLM 응답 정보 없음")
             
             # 이메일 내용 추가
             email_content += f"{i}. {keyword}\n"
