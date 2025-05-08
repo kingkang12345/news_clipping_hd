@@ -773,6 +773,8 @@ if st.button("뉴스 분석 시작", type="primary"):
                 # 재평가 결과가 있으면 최종 상태 업데이트
                 if "final_selection" in reevaluation_result and reevaluation_result["final_selection"]:
                     final_state["final_selection"] = reevaluation_result["final_selection"]
+                    # 재평가 결과임을 표시하기 위한 필드 추가
+                    final_state["is_reevaluated"] = True
                     st.success(f"재평가 후 {len(final_state['final_selection'])}개의 뉴스가 선택되었습니다.")
                 else:
                     # 그래도 없으면 오류 메시지만 표시
@@ -855,8 +857,27 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 5단계: 최종 선택 결과 표시
             st.markdown("<div class='subtitle'>🔍 5단계: 최종 선택 결과</div>", unsafe_allow_html=True)
             
-            # 선정된 뉴스 표시
-            st.markdown("### 📰 최종 선정된 뉴스")
+            # 재평가 여부 확인
+            was_reevaluated = final_state.get("is_reevaluated", False)
+            
+            # 재평가 여부에 따라 메시지와 스타일 변경
+            if was_reevaluated:
+                # 재평가가 수행된 경우
+                st.warning("5단계에서 선정된 뉴스가 없어 6단계 재평가를 진행했습니다.")
+                st.markdown("<div class='subtitle'>🔍 6단계: 재평가 결과</div>", unsafe_allow_html=True)
+                news_title = "📰 재평가 후 선정된 뉴스"
+                news_style = "border-left: 4px solid #FFA500; background-color: #FFF8DC;"
+                reason_prefix = "<span style=\"color: #FFA500; font-weight: bold;\">재평가 후</span> 선별 이유: "
+            else:
+                # 정상적으로 5단계에서 선정된 경우
+                news_title = "📰 최종 선정된 뉴스"  
+                news_style = ""
+                reason_prefix = "선별 이유: "
+            
+            # 뉴스 제목 표시
+            st.markdown(f"### {news_title}")
+            
+            # 최종 선정된 뉴스 표시
             for news in final_state["final_selection"]:
                 # 날짜 형식 변환
                 date_str = news.get('date', '')
@@ -878,11 +899,11 @@ if st.button("뉴스 분석 시작", type="primary"):
                 
                 # 뉴스 정보 표시
                 st.markdown(f"""
-                    <div class="selected-news">
+                    <div class="selected-news" style="{news_style}">
                         <div class="news-title-large">{news['title']} ({formatted_date})</div>
                         <div class="news-url">🔗 <a href="{url}" target="_blank">{url}</a></div>
                         <div class="selection-reason">
-                            • 선별 이유: {news['reason']}
+                            • {reason_prefix}{news['reason']}
                         </div>
                         <div class="news-summary">
                             • 키워드: {', '.join(news['keywords'])} | 관련 계열사: {', '.join(news['affiliates'])} | 언론사: {press}
@@ -1119,6 +1140,7 @@ else:
     - 선정된 모든 뉴스의 요약 이메일 미리보기
     - 디버그 정보 (시스템 프롬프트, AI 응답 등)
     
+    이 툴은 회계법인 관점에서 중요한 뉴스를 최소 2개 이상 선별하여 제공하며, 선정 기준에 맞는 뉴스가 없는 경우에도 AI가 기준을 완화하여 재평가를 수행합니다.
     """)
 
 # 푸터
