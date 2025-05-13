@@ -1,4 +1,5 @@
 import streamlit as st
+import re
 
 
 # ✅ 무조건 첫 Streamlit 명령어
@@ -266,9 +267,9 @@ st.markdown("""
         border: 1px solid #ddd;
         border-radius: 5px;
         padding: 20px;
-        font-family: 'Courier New', monospace;
-        white-space: pre-wrap;
         margin: 20px 0;
+        overflow-y: auto;
+        max-height: 500px;
     }
     .copy-button {
         background-color: #d04a02;
@@ -301,6 +302,17 @@ with col2:
 
 # 주요 기업 리스트 정의
 COMPANIES = ["삼성", "SK", "현대차", "LG", "롯데", "포스코", "한화"]
+
+# 기업별 연관 키워드 사전 정의
+COMPANY_KEYWORD_MAP = {
+    "포스코": ["포스코", "포스코그룹", "포스코인터내셔널", "포스코DX"],
+    "삼성": ["삼성", "삼성전자", "삼성그룹", "삼성바이오로직스", "삼성SDI"],
+    "SK": ["SK", "SK하이닉스", "SK이노베이션", "SK텔레콤", "SK그룹"],
+    "현대차": ["현대차", "현대자동차", "현대모비스", "현대차그룹", "기아"],
+    "LG": ["LG", "LG전자", "LG화학", "LG디스플레이", "LG그룹"],
+    "롯데": ["롯데", "롯데그룹", "롯데케미칼", "롯데쇼핑", "롯데제과", "신동빈"],
+    "한화": ["한화", "한화그룹", "한화에어로스페이스", "한화솔루션", "한화생명"]
+}
 
 # 사이드바 설정
 st.sidebar.title("🔍 분석 설정")
@@ -381,6 +393,9 @@ st.sidebar.markdown("---")
 
 # 1단계: 제외 판단 기준
 
+# 기업 선택 섹션 제목
+st.sidebar.markdown("### 🏢 분석할 기업 선택")
+
 # 새로운 기업 추가 섹션
 new_company = st.sidebar.text_input(
     "새로운 기업 추가",
@@ -391,6 +406,11 @@ new_company = st.sidebar.text_input(
 # 새로운 기업 추가 로직 수정
 if new_company and new_company not in COMPANIES:
     COMPANIES.append(new_company)
+    # 새 기업에 대한 기본 연관 키워드 설정 (기업명 자체만 포함)
+    COMPANY_KEYWORD_MAP[new_company] = [new_company]
+    # 세션 상태도 함께 업데이트
+    if 'company_keyword_map' in st.session_state:
+        st.session_state.company_keyword_map[new_company] = [new_company]
 
 # 키워드 선택을 multiselect로 변경
 selected_companies = st.sidebar.multiselect(
@@ -401,8 +421,75 @@ selected_companies = st.sidebar.multiselect(
     help="분석하고자 하는 기업을 선택하세요. 한 번에 최대 10개까지 선택 가능합니다."
 )
 
-# 선택된 키워드를 바로 사용
-keywords = selected_companies.copy()
+# 연관 키워드 관리 섹션
+st.sidebar.markdown("### 🔍 연관 키워드 관리")
+st.sidebar.markdown("각 기업의 연관 키워드를 확인하고 편집할 수 있습니다.")
+
+# 세션 상태에 COMPANY_KEYWORD_MAP 저장 (초기화)
+if 'company_keyword_map' not in st.session_state:
+    st.session_state.company_keyword_map = COMPANY_KEYWORD_MAP.copy()
+
+# 연관 키워드 UI 개선
+if selected_companies:
+    # 선택된 기업 중에서 관리할 기업 선택
+    company_to_edit = st.sidebar.selectbox(
+        "연관 키워드를 관리할 기업 선택",
+        options=selected_companies,
+        help="키워드를 확인하거나 추가할 기업을 선택하세요."
+    )
+    
+    if company_to_edit:
+        # 현재 연관 키워드 표시 (세션 상태에서 가져옴)
+        current_keywords = st.session_state.company_keyword_map.get(company_to_edit, [company_to_edit])
+        st.sidebar.markdown(f"**현재 '{company_to_edit}'의 연관 키워드:**")
+        keyword_list = ", ".join(current_keywords)
+        st.sidebar.code(keyword_list)
+        
+        # 연관 키워드 편집
+        new_keywords = st.sidebar.text_area(
+            "연관 키워드 편집",
+            value=keyword_list,
+            help="쉼표(,)로 구분하여 키워드를 추가/편집하세요.",
+            key=f"edit_{company_to_edit}"  # 고유 키 추가
+        )
+        
+        # 키워드 업데이트 함수
+        def update_keywords():
+            # 쉼표로 구분된 텍스트를 리스트로 변환
+            updated_keywords = [kw.strip() for kw in new_keywords.split(",") if kw.strip()]
+            
+            # 업데이트
+            if updated_keywords:
+                st.session_state.company_keyword_map[company_to_edit] = updated_keywords
+                st.sidebar.success(f"'{company_to_edit}'의 연관 키워드가 업데이트되었습니다!")
+            else:
+                # 비어있으면 기업명 자체만 포함
+                st.session_state.company_keyword_map[company_to_edit] = [company_to_edit]
+                st.sidebar.warning(f"연관 키워드가 비어있어 기업명만 포함됩니다.")
+        
+        # 변경 사항 적용 버튼
+        if st.sidebar.button("연관 키워드 업데이트", key=f"update_{company_to_edit}", on_click=update_keywords):
+            pass  # 실제 업데이트는 on_click에서 처리되므로 여기서는 아무것도 하지 않음
+
+# 미리보기 버튼 - 모든 검색어 확인
+with st.sidebar.expander("🔍 전체 검색 키워드 미리보기"):
+    for i, company in enumerate(selected_companies, 1):
+        # 세션 상태에서 키워드 가져오기
+        company_keywords = st.session_state.company_keyword_map.get(company, [company])
+        st.markdown(f"**{i}. {company}**")
+        # 연관 키워드 표시
+        for j, kw in enumerate(company_keywords, 1):
+            st.write(f"  {j}) {kw}")
+
+# 선택된 키워드들을 통합 (검색용)
+keywords = []
+for company in selected_companies:
+    # 기업명 자체와 연관 키워드 모두 추가 (세션 상태에서 가져옴)
+    company_keywords = st.session_state.company_keyword_map.get(company, [company])
+    keywords.extend(company_keywords)
+
+# 중복 제거
+keywords = list(set(keywords))
 
 # 구분선 추가
 st.sidebar.markdown("---")
@@ -411,6 +498,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🤖 GPT 모델 선택")
 
 gpt_models = {
+    "openai.gpt-4.1-2025-04-14" : "chatpwc",#pwc
     "gpt-4.1": "최신모델",
     "gpt-4o": "빠르고 실시간, 멀티모달 지원",
     "gpt-4-turbo": "최고 성능, 비용은 좀 있음",
@@ -648,14 +736,20 @@ if st.button("뉴스 분석 시작", type="primary"):
     # 모든 키워드 분석 결과를 저장할 딕셔너리
     all_results = {}
     
-    for i, keyword in enumerate(keywords, 1):
-        with st.spinner(f"'{keyword}' 관련 뉴스를 수집하고 분석 중입니다..."):
+    for i, company in enumerate(selected_companies, 1):
+        with st.spinner(f"'{company}' 관련 뉴스를 수집하고 분석 중입니다..."):
+            # 해당 회사의 연관 키워드 확장 (세션 상태에서 가져옴)
+            company_keywords = st.session_state.company_keyword_map.get(company, [company])
+            
+            # 연관 키워드 표시
+            st.write(f"'{company}' 연관 키워드로 검색 중: {', '.join(company_keywords)}")
+            
             # 각 키워드별 상태 초기화
             initial_state = {
                 "news_data": [], 
                 "filtered_news": [], 
                 "analysis": "", 
-                "keyword": keyword, 
+                "keyword": company_keywords,  # 회사별 확장 키워드 리스트 전달
                 "model": selected_model,
                 "excluded_news": [],
                 "borderline_news": [],
@@ -781,16 +875,16 @@ if st.button("뉴스 분석 시작", type="primary"):
                     st.error("재평가 후에도 선정할 수 있는 뉴스가 없습니다.")
 
             # 키워드별 분석 결과 저장
-            all_results[keyword] = final_state["final_selection"]
+            all_results[company] = final_state["final_selection"]
             
             # 키워드 구분선 추가
             st.markdown("---")
             
             # 키워드별 섹션 구분
-            st.markdown(f"## 📊 {keyword} 분석 결과")
+            st.markdown(f"## 📊 {company} 분석 결과")
             
             # 전체 뉴스 표시 (필터링 전)
-            with st.expander(f"📰 '{keyword}' 관련 전체 뉴스 (필터링 전)"):
+            with st.expander(f"📰 '{company}' 관련 전체 뉴스 (필터링 전)"):
                 for i, news in enumerate(final_state.get("original_news_data", []), 1):
                     date_str = news.get('date', '날짜 정보 없음')
                     url = news.get('url', 'URL 정보 없음')
@@ -805,7 +899,7 @@ if st.button("뉴스 분석 시작", type="primary"):
                     """, unsafe_allow_html=True)
             
             # 유효 언론사 필터링된 뉴스 표시
-            with st.expander(f"📰 '{keyword}' 관련 유효 언론사 뉴스"):
+            with st.expander(f"📰 '{company}' 관련 유효 언론사 뉴스"):
                 for i, news in enumerate(final_state["news_data"]):
                     date_str = news.get('date', '날짜 정보 없음')
                     url = news.get('url', 'URL 정보 없음')
@@ -925,20 +1019,6 @@ if st.button("뉴스 분석 시작", type="primary"):
                         </div>
                         """, unsafe_allow_html=True)
             
-            # 워드 파일 다운로드
-            # st.markdown("<div class='subtitle'>📥 보고서 다운로드</div>", unsafe_allow_html=True)
-            # doc = create_word_document(keyword, final_state["final_selection"], final_state["analysis"])
-            # docx_bytes = get_binary_file_downloader_html(doc, f"PwC_{keyword}_뉴스분석.docx")
-            # st.download_button(
-            #     label=f"📎 {keyword} 분석 보고서 다운로드",
-            #     data=docx_bytes,
-            #     file_name=f"PwC_{keyword}_뉴스분석.docx",
-            #     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            # )
-            
-            # 키워드 구분선 추가
-            st.markdown("---")
-            
             # 디버그 정보
             with st.expander("디버그 정보"):
                 st.markdown("### 1단계: 제외 판단")
@@ -977,7 +1057,7 @@ if st.button("뉴스 분석 시작", type="primary"):
                     st.text(reevaluation_state.get("llm_response_3", "없음") if 'reevaluation_state' in locals() else "재평가 LLM 응답 정보 없음")
             
             # 이메일 내용 추가
-            email_content += f"{i}. {keyword}\n"
+            email_content += f"{i}. {company}\n"
             for news in final_state["final_selection"]:
                 # 날짜 형식 변환
                 date_str = news.get('date', '')
@@ -1002,29 +1082,32 @@ if st.button("뉴스 분석 시작", type="primary"):
     st.markdown("<div class='subtitle'>📧 이메일 미리보기</div>", unsafe_allow_html=True)
     
     # HTML 버전 생성
-    
-    
     html_email_content = "<div style='font-family: Arial, sans-serif; max-width: 800px; font-size: 14px; line-height: 1.5;'>"
     
     html_email_content += "<div style='margin-top: 20px; font-size: 14px;'>안녕하세요, 좋은 아침입니다!<br>오늘의 Client Intelligence 전달 드립니다.<br><br></div>"
     plain_email_content = "\n안녕하세요, 좋은 아침입니다!\n오늘의 Client Intelligence 전달 드립니다."
-    
     
     html_email_content += "<div style='font-size: 14px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000;'>[Client Intelligence]</div>"
     
     # 일반 텍스트 버전 생성 (복사용)
     plain_email_content += "[Client Intelligence]\n\n"
     
-    for i, keyword in enumerate(keywords, 1):
+    def clean_title(title):
+        # - 언론사 패턴만 제거
+        # 예: '제목 - 조선일보' 또는 '제목-조선일보'
+        title = re.sub(r"\s*-\s*[가-힣A-Za-z0-9]+$", "", title).strip()
+        return title
+
+    for i, company in enumerate(selected_companies, 1):
         # HTML 버전에서 키워드를 파란색으로 표시
-        html_email_content += f"<div style='font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 10px; color: #0000FF;'>{i}. {keyword}</div>"
+        html_email_content += f"<div style='font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 10px; color: #0000FF;'>{i}. {company}</div>"
         html_email_content += "<ul style='list-style-type: none; padding-left: 20px; margin: 0;'>"
         
         # 텍스트 버전에서도 키워드 구분을 위해 줄바꿈 추가
-        plain_email_content += f"{i}. {keyword}\n"
+        plain_email_content += f"{i}. {company}\n"
         
         # 해당 키워드의 뉴스 가져오기
-        news_list = all_results.get(keyword, [])
+        news_list = all_results.get(company, [])
         
         for news in news_list:
             # 날짜 형식 변환
@@ -1041,7 +1124,8 @@ if st.button("뉴스 분석 시작", type="primary"):
             
             url = news.get('url', '')
             title = news.get('title', '')
-            
+            # 이메일 미리보기에서는 언론사 패턴 제거
+            title = clean_title(title)
             # HTML 버전 - 링크를 [파일 링크]로 표시하고 글자 크기 통일, 본문 bold 처리
             html_email_content += f"<li style='margin-bottom: 8px; font-size: 14px;'><span style='font-weight: bold;'>- {title} ({formatted_date})</span> <a href='{url}' style='color: #1a0dab; text-decoration: none;'>[기사 링크]</a></li>"
             
@@ -1057,58 +1141,8 @@ if st.button("뉴스 분석 시작", type="primary"):
     
     html_email_content += "</div>"
     
-    # 이메일 미리보기 스타일 추가
-    st.markdown("""
-    <style>
-    .email-preview {
-        background-color: white;
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        padding: 20px;
-        margin: 20px 0;
-        overflow-y: auto;
-        max-height: 500px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
     # 이메일 미리보기 표시
     st.markdown(f"<div class='email-preview'>{html_email_content}</div>", unsafe_allow_html=True)
-    
-    # # 복사 및 다운로드 옵션을 위한 컨테이너
-    # st.markdown("### 📋 내용 복사하기")
-    
-    # tab1, tab2 = st.tabs(["HTML 형식", "텍스트 형식"])
-    
-    # with tab1:
-    #     st.code(html_email_content, language="html")
-    #     st.caption("위 내용을 복사하여 HTML을 지원하는 이메일 편집기에 붙여넣기 하세요.")
-    
-    # with tab2:
-    #     st.code(plain_email_content, language="text")
-    #     st.caption("위 내용을 복사하여 일반 텍스트 이메일에 붙여넣기 하세요.")
-    
-    # # 파일로 저장 옵션
-    # st.markdown("### 💾 파일로 저장하기")
-    # col1, col2 = st.columns(2)
-    
-    # with col1:
-    #     st.download_button(
-    #         label="📥 HTML 파일로 저장",
-    #         data=html_email_content,
-    #         file_name="client_intelligence.html",
-    #         mime="text/html",
-    #         help="HTML 파일로 저장합니다."
-    #     )
-    
-    # with col2:
-    #     st.download_button(
-    #         label="📥 텍스트 파일로 저장",
-    #         data=plain_email_content,
-    #         file_name="client_intelligence.txt",
-    #         mime="text/plain",
-    #         help="텍스트 파일로 저장합니다."
-    #     )
 
 else:
     # 초기 화면 설명
