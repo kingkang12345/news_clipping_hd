@@ -498,11 +498,11 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🤖 GPT 모델 선택")
 
 gpt_models = {
-    "openai.gpt-4.1-2025-04-14" : "chatpwc",#pwc
-    "gpt-4.1": "최신모델",
+    #"openai.gpt-4.1-2025-04-14" : "chatpwc",#pwc
+    "gpt-4.1-mini": "최신모델",
     "gpt-4o": "빠르고 실시간, 멀티모달 지원",
     "gpt-4-turbo": "최고 성능, 비용은 좀 있음",
-    "gpt-4.1-mini": "성능 높고 비용 저렴, 정밀한 분류·요약에 유리",
+    "gpt-4.1": "성능 높고 비용 저렴, 정밀한 분류·요약에 유리",
     "gpt-4.1-nano": "초고속·초저가, 단순 태그 분류에 적합",
     "gpt-3.5-turbo": "아주 저렴, 간단한 분류 작업에 적당"
 }
