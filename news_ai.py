@@ -13,6 +13,8 @@ import streamlit as st
 import time
 from urllib.parse import urlparse
 
+#import dotenv #pwc
+#dotenv.load_dotenv(override=True) #pwc
 # 상태 타입 정의
 class AgentState(TypedDict):
     news_data: List[dict]
@@ -71,9 +73,12 @@ def call_llm(state: AgentState, system_prompt: str, user_prompt: str, stage: int
     try:
         # LLM 초기화
         llm = ChatOpenAI(
+            #openai_api_key=os.getenv("OPENAI_API_KEY"), #pwc
+            #openai_api_base=os.getenv("OPENAI_BASE_URL"), #pwc
+            #model_name = "openai.gpt-4.1-2025-04-14",
             model_name=state.get("model", "gpt-4o"),
             temperature=0.1,
-            max_tokens=2000
+            #max_tokens=2000
         )
 
         # 메시지 구성
@@ -163,7 +168,7 @@ def parse_json_response(response: str) -> dict:
 def collect_news(state: AgentState) -> AgentState:
     """뉴스를 수집하는 함수"""
     try:
-        # 검색어 설정
+        # 검색어 설정 - 문자열 또는 리스트 처리
         keyword = state.get("keyword", "삼성")
         
         # 검색 결과 수는 항상 100개
@@ -176,13 +181,38 @@ def collect_news(state: AgentState) -> AgentState:
         # GoogleNews 객체 생성
         news = GoogleNews()
         
-        # 뉴스 검색
-        news_data = news.search_by_keyword(keyword, k=max_results)
+        # keyword가 문자열이면 리스트로 변환, 아니면 그대로 사용
+        if isinstance(keyword, str):
+            keywords_to_search = [keyword]
+        else:
+            keywords_to_search = keyword
+        
+        # 모든 키워드에 대한 뉴스 수집
+        all_news_data = []
+        
+        # 각 키워드별로 뉴스 검색 및 결과 병합
+        for kw in keywords_to_search:
+            print(f"키워드 '{kw}' 검색 중...")
+            news_results = news.search_by_keyword(kw, k=max_results)
+            all_news_data.extend(news_results)
+            print(f"키워드 '{kw}' 검색 결과: {len(news_results)}개")
+        
+        # 중복 URL 제거 (같은 URL이면 중복으로 간주)
+        unique_urls = set()
+        unique_news_data = []
+        
+        for news_item in all_news_data:
+            url = news_item.get('url', '')
+            if url and url not in unique_urls:
+                unique_urls.add(url)
+                unique_news_data.append(news_item)
+        
+        print(f"중복 제거 후 전체 뉴스 수: {len(unique_news_data)}개")
         
         # 날짜 필터링
         if start_datetime and end_datetime:
             filtered_news = []
-            for news_item in news_data:
+            for news_item in unique_news_data:
                 try:
                     # 뉴스 날짜 파싱
                     news_date_str = news_item.get('date', '')
@@ -205,22 +235,22 @@ def collect_news(state: AgentState) -> AgentState:
                     print(f"날짜 파싱 오류: {e}")
                     continue
             
-            news_data = filtered_news
+            unique_news_data = filtered_news
         
         # 원래 인덱스 추가
-        for i, news_item in enumerate(news_data, 1):
+        for i, news_item in enumerate(unique_news_data, 1):
             news_item['original_index'] = i
         
         # 원본 뉴스 데이터 저장
-        state["original_news_data"] = news_data.copy()
+        state["original_news_data"] = unique_news_data.copy()
         # 필터링할 뉴스 데이터 저장
-        state["news_data"] = news_data
+        state["news_data"] = unique_news_data
         
         # 날짜 필터링 결과 출력
         print(f"\n날짜 필터링 결과:")
         print(f"시작 날짜: {start_datetime}")
         print(f"종료 날짜: {end_datetime}")
-        print(f"필터링된 뉴스 수: {len(news_data)}")
+        print(f"필터링된 뉴스 수: {len(unique_news_data)}")
         
         return state
     except Exception as e:
