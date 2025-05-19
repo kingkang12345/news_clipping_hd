@@ -329,7 +329,7 @@ valid_press_dict = st.sidebar.text_area(
     중앙일보: ["중앙일보", "joongang", "joongang.co.kr", "joins.com"]
     동아일보: ["동아일보", "donga", "donga.com"]
     조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"]
-    한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"]
+    한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴", "매거진한경"]
     매일경제: ["매일경제", "매경", "mk", "mk.co.kr"]
     연합뉴스: ["연합뉴스", "yna", "yna.co.kr"]
     파이낸셜뉴스: ["파이낸셜뉴스", "fnnews", "fnnews.com"]
@@ -341,7 +341,6 @@ valid_press_dict = st.sidebar.text_area(
     아시아경제: ["아시아경제", "asiae", "asiae.co.kr"]
     뉴스핌: ["뉴스핌", "newspim", "newspim.com"]
     뉴시스: ["뉴시스", "newsis", "newsis.com"]
-    매거진한경: ["매거진한경", "magazine.hankyung", "magazine.hankyung.com"]
     헤럴드경제: ["헤럴드경제", "herald", "heraldcorp", "heraldcorp.com"]""",
     help="분석에 포함할 신뢰할 수 있는 언론사와 그 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
     key="valid_press_dict"
