@@ -26,7 +26,7 @@ from news_ai import (
     group_and_select_news,
     evaluate_importance,
 )
-from SendMail import send_outlook_email, create_email_content
+#from SendMail import send_outlook_email, create_email_content
 
 # 워드 파일 생성 함수
 def create_word_document(keyword, final_selection, analysis=""):
