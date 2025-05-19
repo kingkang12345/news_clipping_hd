@@ -328,10 +328,10 @@ valid_press_dict = st.sidebar.text_area(
     value="""조선일보: ["조선일보", "chosun", "chosun.com"]
     중앙일보: ["중앙일보", "joongang", "joongang.co.kr", "joins.com"]
     동아일보: ["동아일보", "donga", "donga.com"]
-    조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"],
-    한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"],
-    매거진한경: ["매거진한경", "magazine.hankyung", "magazine.hankyung.com"],
-    매일경제: ["매일경제", "매경", "mk", "mk.co.kr"],
+    조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"]
+    매거진한경: ["매거진한경", "magazine.hankyung", "magazine.hankyung.com"]
+    한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"]
+    매일경제: ["매일경제", "매경", "mk", "mk.co.kr"]
     연합뉴스: ["연합뉴스", "yna", "yna.co.kr"]
     파이낸셜뉴스: ["파이낸셜뉴스", "fnnews", "fnnews.com"]
     데일리팜: ["데일리팜", "dailypharm", "dailypharm.com"]
@@ -758,6 +758,53 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 연관 키워드 표시
             st.write(f"'{company}' 연관 키워드로 검색 중: {', '.join(company_keywords)}")
             
+            # initial_state 설정 부분 직전에 valid_press_dict를 딕셔너리로 변환하는 코드 추가
+            # 텍스트 에어리어의 내용을 딕셔너리로 변환
+            valid_press_config = {}
+            try:
+                # 문자열에서 딕셔너리 파싱
+                lines = valid_press_dict.strip().split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line and ': ' in line:
+                        press_name, aliases_str = line.split(':', 1)
+                        try:
+                            # 문자열 형태의 리스트를 실제 리스트로 변환
+                            aliases = eval(aliases_str.strip())
+                            valid_press_config[press_name.strip()] = aliases
+                            print(f"[DEBUG] Valid press 파싱 성공: {press_name.strip()} -> {aliases}")
+                        except Exception as e:
+                            print(f"[DEBUG] Valid press 파싱 실패: {line}, 오류: {str(e)}")
+            except Exception as e:
+                print(f"[DEBUG] Valid press 전체 파싱 실패: {str(e)}")
+                # 오류 발생 시 빈 딕셔너리 사용
+                valid_press_config = {}
+            
+            print(f"[DEBUG] 파싱된 valid_press_dict: {valid_press_config}")
+            
+            # 추가 언론사도 파싱
+            additional_press_config = {}
+            try:
+                # 문자열에서 딕셔너리 파싱
+                lines = additional_press_dict.strip().split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line and ': ' in line:
+                        press_name, aliases_str = line.split(':', 1)
+                        try:
+                            # 문자열 형태의 리스트를 실제 리스트로 변환
+                            aliases = eval(aliases_str.strip())
+                            additional_press_config[press_name.strip()] = aliases
+                            print(f"[DEBUG] Additional press 파싱 성공: {press_name.strip()} -> {aliases}")
+                        except Exception as e:
+                            print(f"[DEBUG] Additional press 파싱 실패: {line}, 오류: {str(e)}")
+            except Exception as e:
+                print(f"[DEBUG] Additional press 전체 파싱 실패: {str(e)}")
+                # 오류 발생 시 빈 딕셔너리 사용
+                additional_press_config = {}
+            
+            print(f"[DEBUG] 파싱된 additional_press_dict: {additional_press_config}")
+            
             # 각 키워드별 상태 초기화
             initial_state = {
                 "news_data": [], 
@@ -784,6 +831,10 @@ if st.button("뉴스 분석 시작", type="primary"):
                 "llm_response_3": "",
                 "not_selected_news": [],
                 "original_news_data": [],
+                # 언론사 설정 추가 (파싱된 딕셔너리 사용)
+                "valid_press_dict": valid_press_config,
+                # 추가 언론사 설정 추가
+                "additional_press_dict": additional_press_config,
                 # 날짜 필터 정보 추가
                 "start_datetime": datetime.combine(start_date, start_time),
                 "end_datetime": datetime.combine(end_date, end_time)
@@ -813,31 +864,17 @@ if st.button("뉴스 분석 시작", type="primary"):
             if len(final_state["final_selection"]) == 0:
                 st.write("6단계: 선택된 뉴스가 없어 재평가를 시작합니다...")
                 
-                # 추가 언론사 설정 불러오기
-                additional_press = additional_press_dict
+                # 추가 언론사 설정 불러오기 (이미 파싱된 딕셔너리 사용)
+                additional_press = additional_press_config
                 
-                # 기존 유효 언론사에 추가 언론사 병합
-                expanded_valid_press = valid_press_dict + "\n" + additional_press
+                # 기존 유효 언론사에 추가 언론사 병합 (딕셔너리 병합)
+                expanded_valid_press_dict = {**valid_press_config, **additional_press}
                 
                 # 추가 언론사로 필터링한 뉴스 저장 (기존 뉴스와 구분)
                 additional_valid_news = []
                 
                 # 확장된 언론사 목록으로 원본 뉴스 재필터링
                 try:
-                    # 확장된 유효 언론사 문자열을 파이썬 딕셔너리로 변환
-                    expanded_valid_press_dict = {}
-                    lines = expanded_valid_press.strip().split('\n')
-                    for line in lines:
-                        line = line.strip()
-                        if line and ': ' in line:
-                            press_name, aliases_str = line.split(':', 1)
-                            try:
-                                # 문자열 형태의 리스트를 실제 리스트로 변환
-                                aliases = eval(aliases_str.strip())
-                                expanded_valid_press_dict[press_name.strip()] = aliases
-                            except:
-                                continue
-                    
                     # 현재 필터링된 유효 언론사 뉴스 수집
                     current_news_data = final_state.get("news_data", [])
                     
@@ -858,8 +895,9 @@ if st.button("뉴스 분석 시작", type="primary"):
                             is_valid = False
                             for main_press, aliases in expanded_valid_press_dict.items():
                                 domain = urlparse(url).netloc.lower()
-                                if any(alias.lower() == press for alias in aliases) or \
-                                   any(alias.lower() == domain for alias in aliases):
+                                # 더 유연한 매칭 적용
+                                if any(alias.lower() in press or press in alias.lower() for alias in aliases) or \
+                                   any(alias.lower() in domain or domain in alias.lower() for alias in aliases):
                                     is_valid = True
                                     break
                             
@@ -890,6 +928,11 @@ if st.button("뉴스 분석 시작", type="primary"):
                     reevaluation_state = final_state.copy()
                     combined_news = final_state.get("news_data", [])
                 
+                # 확장된 유효 언론사 목록 문자열로 변환 (프롬프트용)
+                expanded_valid_press_str = "유효 언론사 목록:\n"
+                for press, aliases in expanded_valid_press_dict.items():
+                    expanded_valid_press_str += f"  * {press}: {aliases}\n"
+                
                 # 재평가 시스템 프롬프트 개선 - 모든 뉴스 데이터 포함
                 reevaluation_system_prompt = f"""
                 당신은 회계법인의 뉴스 분석 전문가입니다. 현재 선정된 뉴스가 없어 재평가가 필요합니다.
@@ -914,7 +957,7 @@ if st.button("뉴스 분석 시작", type="primary"):
                 - 필요하다면 중요도 '하'도 고려하여 최소 2개의 기사를 선정
 
                 [확장된 유효 언론사 목록]
-                {expanded_valid_press}
+                {expanded_valid_press_str}
 
                 [기존 제외 기준]
                 {exclusion_criteria}
