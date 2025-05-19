@@ -328,9 +328,10 @@ valid_press_dict = st.sidebar.text_area(
     value="""조선일보: ["조선일보", "chosun", "chosun.com"]
     중앙일보: ["중앙일보", "joongang", "joongang.co.kr", "joins.com"]
     동아일보: ["동아일보", "donga", "donga.com"]
-    조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"]
-    한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴", "매거진한경"]
-    매일경제: ["매일경제", "매경", "mk", "mk.co.kr"]
+    조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"],
+    한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"],
+    매거진한경: ["매거진한경", "magazine.hankyung", "magazine.hankyung.com"],
+    매일경제: ["매일경제", "매경", "mk", "mk.co.kr"],
     연합뉴스: ["연합뉴스", "yna", "yna.co.kr"]
     파이낸셜뉴스: ["파이낸셜뉴스", "fnnews", "fnnews.com"]
     데일리팜: ["데일리팜", "dailypharm", "dailypharm.com"]
