@@ -50,6 +50,7 @@ TRUSTED_PRESS_ALIASES = {
 
     "조선비즈": ["조선비즈", "chosunbiz", "biz.chosun.com"],
     "한국경제": ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"],
+    "매거진한경": ["매거진한경", "magazine.hankyung", "magazine.hankyung.com"],
     "매일경제": ["매일경제", "매경", "mk", "mk.co.kr"],
 
     "연합뉴스": ["연합뉴스", "yna", "yna.co.kr"],
