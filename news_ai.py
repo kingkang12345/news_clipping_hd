@@ -42,25 +42,20 @@ class AgentState(TypedDict):
     start_datetime: datetime
     end_datetime: datetime
 
-# 신뢰할 수 있는 언론사 목록
+# 신뢰할 수 있는 언론사 목록 (기본값으로만 사용)
 TRUSTED_PRESS_ALIASES = {
     "조선일보": ["조선일보", "chosun", "chosun.com"],
     "중앙일보": ["중앙일보", "joongang", "joongang.co.kr", "joins.com"],
     "동아일보": ["동아일보", "donga", "donga.com"],
-
     "조선비즈": ["조선비즈", "chosunbiz", "biz.chosun.com"],
     "한국경제": ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"],
-    "매거진한경": ["매거진한경", "magazine.hankyung", "magazine.hankyung.com"],
     "매일경제": ["매일경제", "매경", "mk", "mk.co.kr"],
-
     "연합뉴스": ["연합뉴스", "yna", "yna.co.kr"],
     "파이낸셜뉴스": ["파이낸셜뉴스", "fnnews", "fnnews.com"],
     "데일리팜": ["데일리팜", "dailypharm", "dailypharm.com"],
-
     "IT조선": ["it조선", "it.chosun.com", "itchosun"],
     "머니투데이": ["머니투데이", "mt", "mt.co.kr"],
     "비즈니스포스트": ["비즈니스포스트", "businesspost", "businesspost.co.kr"],
-
     "이데일리": ["이데일리", "edaily", "edaily.co.kr"],
     "아시아경제": ["아시아경제", "asiae", "asiae.co.kr"],
     "뉴스핌": ["뉴스핌", "newspim", "newspim.com"],
@@ -262,37 +257,143 @@ def filter_valid_press(state: AgentState) -> AgentState:
     """유효 언론사 필터링"""
     news_data = state.get("news_data", [])
     
-    # UI에서 설정한 유효 언론사 목록 사용
-    valid_press_config = state.get("valid_press_dict", {})
+    # UI에서 설정한 유효 언론사 목록 가져오기
+    valid_press_dict_str = state.get("valid_press_dict", "")
+    
+    # UI 설정 값이 문자열이면 딕셔너리로 파싱
+    valid_press_config = {}
+    if isinstance(valid_press_dict_str, str) and valid_press_dict_str.strip():
+        print("\n[DEBUG] UI에서 설정한 언론사 문자열 파싱 시작")
+        try:
+            # 문자열에서 딕셔너리 파싱
+            lines = valid_press_dict_str.strip().split('\n')
+            for line in lines:
+                line = line.strip()
+                if line and ': ' in line:
+                    press_name, aliases_str = line.split(':', 1)
+                    try:
+                        # 문자열 형태의 리스트를 실제 리스트로 변환
+                        aliases = eval(aliases_str.strip())
+                        valid_press_config[press_name.strip()] = aliases
+                        print(f"[DEBUG] 파싱 성공: {press_name.strip()} -> {aliases}")
+                    except Exception as e:
+                        print(f"[DEBUG] 파싱 실패: {line}, 오류: {str(e)}")
+        except Exception as e:
+            print(f"[DEBUG] 전체 파싱 실패: {str(e)}")
+    # UI 설정 값이 이미 딕셔너리면 그대로 사용
+    elif isinstance(valid_press_dict_str, dict):
+        valid_press_config = valid_press_dict_str
+        print("\n[DEBUG] UI에서 설정한 언론사 딕셔너리 직접 사용")
+    
+    # 파싱 결과가 비어있으면 기본값 사용
     if not valid_press_config:
-        # 기본값으로 하드코딩된 값 사용
+        print("\n[DEBUG] 유효한 설정을 찾을 수 없어 기본값 사용")
         valid_press_config = TRUSTED_PRESS_ALIASES
     
     print(f"\n전체 수집된 뉴스 수: {len(news_data)}")
+    print(f"\n=== 유효 언론사 설정 ===")
+    for press, aliases in valid_press_config.items():
+        print(f"- {press}: {aliases}")
+    
+    # 문자열 정규화 함수
+    def normalize_string(s):
+        """문자열을 정규화하여 비교하기 쉽게 만듭니다."""
+        if not s:
+            return ""
+        # 소문자로 변환, 선행/후행 공백 제거, 연속된 공백을 하나로 변환
+        return re.sub(r'\s+', ' ', s.lower().strip())
     
     # 유효 언론사 뉴스 필터링 함수
     def filter_news(news_list):
         valid_news = []
-        for news in news_list:
-            press = news.get("press", "").lower()
-            url = news.get("url", "").lower()
+        for i, news in enumerate(news_list):
+            # 원본 데이터 저장
+            original_press = news.get("press", "")
+            original_url = news.get("url", "")
+            
+            # 정규화된 값 생성
+            press = normalize_string(original_press)
+            url = normalize_string(original_url)
+            
+            print(f"\n=== 뉴스 #{i+1} 필터링 검사 ===")
+            print(f"제목: {news.get('content', '제목 없음')}")
+            print(f"언론사: '{original_press}' (정규화: '{press}')")
+            print(f"URL: {original_url}")
+            domain = urlparse(url).netloc
+            print(f"도메인: {domain}")
             
             # 언론사명이나 URL이 신뢰할 수 있는 언론사 목록에 포함되는지 확인
             is_valid = False
+            matched_press = None
+            matched_alias = None
+            
             for main_press, aliases in valid_press_config.items():
-                domain = urlparse(url).netloc.lower()
-                if any(alias.lower() == press for alias in aliases) or \
-                   any(alias.lower() == domain for alias in aliases):
-                    is_valid = True
+                # 별칭들도 정규화
+                normalized_aliases = [normalize_string(alias) for alias in aliases]
+                
+                # 디버깅을 위한 상세 출력
+                press_match_found = False
+                domain_match_found = False
+                
+                # 1. 언론사명 매칭 검사 - 완전 일치 또는 포함 관계 확인
+                for alias in normalized_aliases:
+                    if press == alias or press in alias or alias in press:
+                        press_match_found = True
+                        matched_press = main_press
+                        matched_alias = alias
+                        print(f"✓ 언론사명 매칭 성공: '{press}' 매칭됨 '{alias}' (언론사: {main_press})")
+                        is_valid = True
+                        break
+                
+                # 2. URL 도메인 매칭 검사 (언론사명으로 매칭되지 않은 경우)
+                if not is_valid:
+                    for alias in normalized_aliases:
+                        if domain and (alias in domain or domain in alias):
+                            domain_match_found = True
+                            matched_press = main_press
+                            matched_alias = alias
+                            print(f"✓ 도메인 매칭 성공: '{domain}' 매칭됨 '{alias}' (언론사: {main_press})")
+                            is_valid = True
+                            break
+                
+                if not press_match_found and not domain_match_found:
+                    # 매칭 실패 정보 출력 (너무 상세한 로그는 제거)
+                    # print(f"✗ '{main_press}'의 별칭들과 매칭 실패: {aliases}")
+                    pass
+                
+                if is_valid:
                     break
             
             if is_valid:
+                print(f"✅ 결과: 유효한 언론사 '{matched_press}'로 인식됨 (매칭된 별칭: '{matched_alias}')")
+                # 매칭된 정보 추가
+                news["matched_press"] = matched_press
+                news["matched_alias"] = matched_alias
                 valid_news.append(news)
+            else:
+                print(f"❌ 결과: 유효하지 않은 언론사로 인식됨")
+                # 실패한 경우 상세 로그
+                print(f"[DEBUG] 실패 세부 정보 - 언론사: '{press}', 도메인: '{domain}'")
+                print(f"[DEBUG] 사용 중인 유효 언론사 목록의 키: {list(valid_press_config.keys())}")
+        
         return valid_news
     
     # 모든 뉴스를 한 번에 처리
     valid_press_news = filter_news(news_data)
     print(f"\n유효 언론사 뉴스 수: {len(valid_press_news)}")
+    
+    # 정리된 결과 출력
+    print("\n=== 유효 언론사별 필터링 결과 ===")
+    press_count = {}
+    for news in valid_press_news:
+        matched_press = news.get("matched_press", "알 수 없음")
+        if matched_press in press_count:
+            press_count[matched_press] += 1
+        else:
+            press_count[matched_press] = 1
+    
+    for press, count in press_count.items():
+        print(f"- {press}: {count}개 기사")
     
     # 유효 언론사 뉴스가 없는 경우
     if not valid_press_news:
