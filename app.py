@@ -17,6 +17,7 @@ from PIL import Image
 import docx
 from docx.shared import Pt, RGBColor, Inches
 import io
+from urllib.parse import urlparse
 from googlenews import GoogleNews
 from news_ai import (
     collect_news,
@@ -25,6 +26,7 @@ from news_ai import (
     group_and_select_news,
     evaluate_importance,
 )
+from SendMail import send_outlook_email, create_email_content
 
 # 워드 파일 생성 함수
 def create_word_document(keyword, final_selection, analysis=""):
@@ -324,24 +326,35 @@ st.sidebar.markdown("### 📋 0단계: 기본 설정")
 valid_press_dict = st.sidebar.text_area(
     "📰 유효 언론사 설정",
     value="""조선일보: ["조선일보", "chosun", "chosun.com"]
-중앙일보: ["중앙일보", "joongang", "joongang.co.kr", "joins.com"]
-동아일보: ["동아일보", "donga", "donga.com"]
-조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"]
-한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"]
-매일경제: ["매일경제", "매경", "mk", "mk.co.kr"]
-연합뉴스: ["연합뉴스", "yna", "yna.co.kr"]
-파이낸셜뉴스: ["파이낸셜뉴스", "fnnews", "fnnews.com"]
-데일리팜: ["데일리팜", "dailypharm", "dailypharm.com"]
-IT조선: ["it조선", "it.chosun.com", "itchosun"]
-머니투데이: ["머니투데이", "mt", "mt.co.kr"]
-비즈니스포스트: ["비즈니스포스트", "businesspost", "businesspost.co.kr"]
-이데일리: ["이데일리", "edaily", "edaily.co.kr"]
-아시아경제: ["아시아경제", "asiae", "asiae.co.kr"]
-뉴스핌: ["뉴스핌", "newspim", "newspim.com"]
-뉴시스: ["뉴시스", "newsis", "newsis.com"]
-헤럴드경제: ["헤럴드경제", "herald", "heraldcorp", "heraldcorp.com"]""",
+    중앙일보: ["중앙일보", "joongang", "joongang.co.kr", "joins.com"]
+    동아일보: ["동아일보", "donga", "donga.com"]
+    조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"]
+    한국경제: ["한국경제", "한경", "hankyung", "hankyung.com", "한경닷컴"]
+    매일경제: ["매일경제", "매경", "mk", "mk.co.kr"]
+    연합뉴스: ["연합뉴스", "yna", "yna.co.kr"]
+    파이낸셜뉴스: ["파이낸셜뉴스", "fnnews", "fnnews.com"]
+    데일리팜: ["데일리팜", "dailypharm", "dailypharm.com"]
+    IT조선: ["it조선", "it.chosun.com", "itchosun"]
+    머니투데이: ["머니투데이", "mt", "mt.co.kr"]
+    비즈니스포스트: ["비즈니스포스트", "businesspost", "businesspost.co.kr"]
+    이데일리: ["이데일리", "edaily", "edaily.co.kr"]
+    아시아경제: ["아시아경제", "asiae", "asiae.co.kr"]
+    뉴스핌: ["뉴스핌", "newspim", "newspim.com"]
+    뉴시스: ["뉴시스", "newsis", "newsis.com"]
+    매거진한경: ["매거진한경", "magazine.hankyung", "magazine.hankyung.com"]
+    헤럴드경제: ["헤럴드경제", "herald", "heraldcorp", "heraldcorp.com"]""",
     help="분석에 포함할 신뢰할 수 있는 언론사와 그 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
     key="valid_press_dict"
+)
+
+# 추가 언론사 설정 (재평가 시에만 사용됨)
+additional_press_dict = st.sidebar.text_area(
+    "📰 추가 언론사 설정 (재평가 시에만 사용)",
+    value="""철강금속신문: ["철강금속신문", "snmnews", "snmnews.com"]
+    에너지신문: ["에너지신문", "energy-news", "energy-news.co.kr"]
+    이코노믹데일리: ["이코노믹데일리", "economidaily", "economidaily.com"]""",
+    help="기본 언론사에서 뉴스가 선택되지 않을 경우, 재평가 단계에서 추가로 고려할 언론사와 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
+    key="additional_press_dict"
 )
 
 # 구분선 추가
@@ -499,10 +512,10 @@ st.sidebar.markdown("### 🤖 GPT 모델 선택")
 
 gpt_models = {
     #"openai.gpt-4.1-2025-04-14" : "chatpwc",#pwc
-    "gpt-4.1-mini": "최신모델",
+    "gpt-4.1": "최신모델",
     "gpt-4o": "빠르고 실시간, 멀티모달 지원",
     "gpt-4-turbo": "최고 성능, 비용은 좀 있음",
-    "gpt-4.1": "성능 높고 비용 저렴, 정밀한 분류·요약에 유리",
+    "gpt-4.1-mini": "성능 높고 비용 저렴, 정밀한 분류·요약에 유리",
     "gpt-4.1-nano": "초고속·초저가, 단순 태그 분류에 적합",
     "gpt-3.5-turbo": "아주 저렴, 간단한 분류 작업에 적당"
 }
@@ -579,8 +592,9 @@ exclusion_criteria = st.sidebar.text_area(
 
 4. 기술 성능, 품질, 테스트 관련 보도
    - 키워드: 우수성 입증, 기술력 인정, 성능 비교, 품질 테스트, 기술 성과
-5. 단순 목표주가 관련 보도
-   - 키워드: 목표가, 목표주가 달성, 목표주가 도달""",
+   
+5. 단순 애널리스트의 목표가 관련 보도
+   - 키워드: 목표가, 목표주가 달성, 목표주가 도달, 목표주가 향상, 목표가↑, 목표가↓""",
     help="분석에서 제외할 뉴스의 기준을 설정하세요.",
     key="exclusion_criteria",
     height = 300
@@ -795,26 +809,112 @@ if st.button("뉴스 분석 시작", type="primary"):
             st.write("5단계: 중요도 평가 중...")
             final_state = evaluate_importance(state_after_grouping)
 
-            # 6단계: 0개 선택 시 재평가 (새로 추가)
+            # 6단계: 0개 선택 시 재평가 (개선된 코드)
             if len(final_state["final_selection"]) == 0:
                 st.write("6단계: 선택된 뉴스가 없어 재평가를 시작합니다...")
                 
-                # 6단계 재평가를 위한 통합 시스템 프롬프트
+                # 추가 언론사 설정 불러오기
+                additional_press = additional_press_dict
+                
+                # 기존 유효 언론사에 추가 언론사 병합
+                expanded_valid_press = valid_press_dict + "\n" + additional_press
+                
+                # 추가 언론사로 필터링한 뉴스 저장 (기존 뉴스와 구분)
+                additional_valid_news = []
+                
+                # 확장된 언론사 목록으로 원본 뉴스 재필터링
+                try:
+                    # 확장된 유효 언론사 문자열을 파이썬 딕셔너리로 변환
+                    expanded_valid_press_dict = {}
+                    lines = expanded_valid_press.strip().split('\n')
+                    for line in lines:
+                        line = line.strip()
+                        if line and ': ' in line:
+                            press_name, aliases_str = line.split(':', 1)
+                            try:
+                                # 문자열 형태의 리스트를 실제 리스트로 변환
+                                aliases = eval(aliases_str.strip())
+                                expanded_valid_press_dict[press_name.strip()] = aliases
+                            except:
+                                continue
+                    
+                    # 현재 필터링된 유효 언론사 뉴스 수집
+                    current_news_data = final_state.get("news_data", [])
+                    
+                    # 원본 뉴스 데이터 가져오기
+                    original_news_data = final_state.get("original_news_data", [])
+                    
+                    if expanded_valid_press_dict:
+                        # 확장된 언론사 목록으로 원본 뉴스 재필터링
+                        for news in original_news_data:
+                            # 이미 필터링된 뉴스는 제외
+                            if any(existing_news.get('url') == news.get('url') for existing_news in current_news_data):
+                                continue
+                                
+                            press = news.get("press", "").lower()
+                            url = news.get("url", "").lower()
+                            
+                            # 추가된 언론사 기준으로만 필터링
+                            is_valid = False
+                            for main_press, aliases in expanded_valid_press_dict.items():
+                                domain = urlparse(url).netloc.lower()
+                                if any(alias.lower() == press for alias in aliases) or \
+                                   any(alias.lower() == domain for alias in aliases):
+                                    is_valid = True
+                                    break
+                            
+                            if is_valid:
+                                # 새 언론사 필터링된 뉴스임을 표시
+                                additional_valid_news.append(news)
+                    
+                    # 추가 유효 뉴스가 있으면 기존 news_data에 추가
+                    if additional_valid_news:
+                        st.success(f"추가 언론사 기준으로 {len(additional_valid_news)}개의 뉴스가 추가로 필터링되었습니다.")
+                        
+                        # 기존 뉴스 데이터와 병합
+                        combined_news = current_news_data + additional_valid_news
+                        reevaluation_state = final_state.copy()
+                        reevaluation_state["news_data"] = combined_news
+                        
+                        # 추가된 뉴스들에 대한 제외/유지 판단 재실행
+                        reevaluation_state = filter_excluded_news(reevaluation_state)
+                        
+                        # 그룹핑 재실행
+                        reevaluation_state = group_and_select_news(reevaluation_state)
+                    else:
+                        # 추가 뉴스가 없으면 원래 상태 복사
+                        reevaluation_state = final_state.copy()
+                        combined_news = current_news_data
+                except Exception as e:
+                    st.warning(f"추가 언론사 필터링 중 오류 발생: {str(e)}")
+                    reevaluation_state = final_state.copy()
+                    combined_news = final_state.get("news_data", [])
+                
+                # 재평가 시스템 프롬프트 개선 - 모든 뉴스 데이터 포함
                 reevaluation_system_prompt = f"""
                 당신은 회계법인의 뉴스 분석 전문가입니다. 현재 선정된 뉴스가 없어 재평가가 필요합니다.
-                아래 3가지 방향으로 뉴스를 재검토하세요:
+                아래 4가지 방향으로 뉴스를 재검토하세요:
 
-                1. 제외 조건 재평가:
+                1. 언론사 필터링 기준 완화:
+                - 기존 유효 언론사 목록 외에도 다음 언론사의 기사를 포함하여 평가합니다:
+                  * 철강금속신문: 산업 전문지로 금속/철강 업계 소식에 특화됨
+                  * 에너지신문: 에너지 산업 전문 매체로 관련 기업 분석에 유용함
+                  * 이코노믹데일리: 경제 전문지로 추가적인 시각 제공
+
+                2. 제외 조건 재평가:
                 - 제외 기준을 유연하게 적용하여, 회계법인의 관점에서 재무적 관점으로 해석 가능한 기사들을 보류로 분류
                 - 특히 기업의 재정 혹은 전략적 변동과 연관된 기사를 보류로 전환
 
-                2. 중복 제거 재평가:
+                3. 중복 제거 재평가:
                 - 중복 기사 중에서도 언론사의 신뢰도나 기사 내용을 추가로 고려하여 가능한 경우 추가적으로 선택
                 - 재무적/전략적 관점에서 추가 정보를 제공하는 기사 우선 선택
 
-                3. 중요도 재평가:
+                4. 중요도 재평가:
                 - 선택 기준을 일부 충족하지 않는 기사일지라도 기업명과 관련된 재정적 또는 전략적 변동에 대해서는 중요도를 '중'으로 평가
                 - 필요하다면 중요도 '하'도 고려하여 최소 2개의 기사를 선정
+
+                [확장된 유효 언론사 목록]
+                {expanded_valid_press}
 
                 [기존 제외 기준]
                 {exclusion_criteria}
@@ -825,10 +925,29 @@ if st.button("뉴스 분석 시작", type="primary"):
                 [기존 선택 기준]
                 {selection_criteria}
 
-                [뉴스 목록]
-                - 제외된 뉴스: {[f"{news['index']}. {news['title']}" for news in final_state["excluded_news"]]}
-                - 보류 뉴스: {[f"{news['index']}. {news['title']}" for news in final_state["borderline_news"]]}
-                - 유지 뉴스: {[f"{news['index']}. {news['title']}" for news in final_state["retained_news"]]}
+                [전체 뉴스 목록]
+                """
+                
+                # 모든 뉴스 데이터를 하나의 리스트로 통합 (JSON 형식으로)
+                all_news_json = []
+                for i, news in enumerate(combined_news):
+                    all_news_json.append({
+                        "index": i+1,
+                        "title": news.get('content', '제목 없음'),
+                        "url": news.get('url', ''),
+                        "date": news.get('date', ''),
+                        "press": news.get('press', '')
+                    })
+                
+                # 프롬프트에 통합된 뉴스 목록 추가
+                reevaluation_system_prompt += str(all_news_json)
+                
+                reevaluation_system_prompt += """
+                
+                [분류된 뉴스 목록]
+                - 제외된 뉴스: {[f"제목: {news['title']}, 인덱스: {news['index']}, 사유: {news.get('reason', '')}" for news in reevaluation_state["excluded_news"]]}
+                - 보류 뉴스: {[f"제목: {news['title']}, 인덱스: {news['index']}, 사유: {news.get('reason', '')}" for news in reevaluation_state["borderline_news"]]}
+                - 유지 뉴스: {[f"제목: {news['title']}, 인덱스: {news['index']}, 사유: {news.get('reason', '')}" for news in reevaluation_state["retained_news"]]}
 
                 ⚠️ 매우 중요한 지시사항 ⚠️
                 1. 반드시 최소 2개 이상의 기사를 선정해야 합니다.
@@ -836,11 +955,12 @@ if st.button("뉴스 분석 시작", type="primary"):
                 3. 원래 '제외'로 분류했던 기사 중에서도 회계법인 관점에서 조금이라도 가치가 있는 내용이 있다면 재검토하세요.
                 4. 어떤 경우에도 2개 미만의 기사를 선정하지 마세요. 이는 절대적인 요구사항입니다.
                 5. 모든 기사가 부적합하다고 판단되더라도 그 중에서 가장 나은 2개는 선정해야 합니다.
+                6. 추가 언론사 목록의 기사들도 동등하게 고려하세요.
 
                 다음 JSON 형식으로 응답해주세요:
-                {{
+                {
                     "reevaluated_news": [
-                        {{
+                        {
                             "index": 1,
                             "title": "뉴스 제목",
                             "press": "언론사명",
@@ -849,13 +969,10 @@ if st.button("뉴스 분석 시작", type="primary"):
                             "keywords": ["키워드1", "키워드2"],
                             "affiliates": ["계열사1", "계열사2"],
                             "importance": "중요도(상/중/하)"
-                        }}
+                        }
                     ]
-                }}
+                }
                 """
-                
-                # 재평가를 위한 상태 복사
-                reevaluation_state = final_state.copy()
                 
                 # 재평가 시스템 프롬프트로 업데이트
                 reevaluation_state["system_prompt_3"] = reevaluation_system_prompt
@@ -1143,6 +1260,38 @@ if st.button("뉴스 분석 시작", type="primary"):
     
     # 이메일 미리보기 표시
     st.markdown(f"<div class='email-preview'>{html_email_content}</div>", unsafe_allow_html=True)
+
+    # # 세션 상태 초기화 (이메일 전송 결과 저장용)
+    # if 'email_sent' not in st.session_state:
+    #     st.session_state.email_sent = False
+    #     st.session_state.email_message = ""
+    #     st.session_state.email_success = False
+
+    # # 이메일 전송 버튼 추가
+    # if st.button("📧 Outlook으로 이메일 보내기", type="primary"):
+    #     with st.spinner("이메일 작성 중..."):
+    #         success, message = send_outlook_email(html_email_content, plain_email_content)
+    #         # 세션 상태에 결과 저장
+    #         st.session_state.email_sent = True
+    #         st.session_state.email_message = message
+    #         st.session_state.email_success = success
+
+    # # 이메일 전송 결과 표시 (세션 상태 사용)
+    # if st.session_state.email_sent:
+    #     if st.session_state.email_success:
+    #         st.success(st.session_state.email_message)
+    #     else:
+    #         st.error(st.session_state.email_message)
+    #         st.error("Outlook 연결에 문제가 있습니다. 다음을 확인해보세요:")
+    #         st.markdown("""
+    #         1. Outlook이 설치되어 있는지 확인하세요.
+    #         2. Outlook이 실행 중인지 확인하세요.
+    #         3. Outlook에 로그인이 되어 있는지 확인하세요.
+    #         4. 방화벽이나 보안 설정이 Outlook 접근을 차단하고 있지 않은지 확인하세요.
+    #         """)
+    #         # 디버그 정보 표시
+    #         with st.expander("오류 상세 정보"):
+    #             st.code(st.session_state.email_message)
 
 else:
     # 초기 화면 설명
