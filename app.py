@@ -1269,28 +1269,33 @@ if st.button("뉴스 분석 시작", type="primary"):
         # 해당 키워드의 뉴스 가져오기
         news_list = all_results.get(company, [])
         
-        for news in news_list:
-            # 날짜 형식 변환
-            date_str = news.get('date', '')
-            try:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                formatted_date = date_obj.strftime('%m/%d')
-            except Exception as e:
+        if not news_list:
+            # 최종 선정 뉴스가 0건인 경우 안내 문구 추가
+            html_email_content += "<li style='margin-bottom: 8px; font-size: 14px; color: #888;'>AI 분석결과 금일자로 회계법인 관점에서 특별히 주목할 만한 기사가 없습니다.</li>"
+            plain_email_content += "  - AI 분석결과 금일자로 회계법인 관점에서 특별히 주목할 만한 기사가 없습니다.\n"
+        else:
+            for news in news_list:
+                # 날짜 형식 변환
+                date_str = news.get('date', '')
                 try:
-                    date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                     formatted_date = date_obj.strftime('%m/%d')
                 except Exception as e:
-                    formatted_date = date_str if date_str else '날짜 정보 없음'
-            
-            url = news.get('url', '')
-            title = news.get('title', '')
-            # 이메일 미리보기에서는 언론사 패턴 제거
-            title = clean_title(title)
-            # HTML 버전 - 링크를 [파일 링크]로 표시하고 글자 크기 통일, 본문 bold 처리
-            html_email_content += f"<li style='margin-bottom: 8px; font-size: 14px;'><span style='font-weight: bold;'>- {title} ({formatted_date})</span> <a href='{url}' style='color: #1a0dab; text-decoration: none;'>[기사 링크]</a></li>"
-            
-            # 텍스트 버전 - 링크를 [파일 링크]로 표시하고 실제 URL은 그 다음 줄에
-            plain_email_content += f"  - {title} ({formatted_date}) [기사 링크]\n    {url}\n"
+                    try:
+                        date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                        formatted_date = date_obj.strftime('%m/%d')
+                    except Exception as e:
+                        formatted_date = date_str if date_str else '날짜 정보 없음'
+                
+                url = news.get('url', '')
+                title = news.get('title', '')
+                # 이메일 미리보기에서는 언론사 패턴 제거
+                title = clean_title(title)
+                # HTML 버전 - 링크를 [파일 링크]로 표시하고 글자 크기 통일, 본문 bold 처리
+                html_email_content += f"<li style='margin-bottom: 8px; font-size: 14px;'><span style='font-weight: bold;'>- {title} ({formatted_date})</span> <a href='{url}' style='color: #1a0dab; text-decoration: none;'>[기사 링크]</a></li>"
+                
+                # 텍스트 버전 - 링크를 [파일 링크]로 표시하고 실제 URL은 그 다음 줄에
+                plain_email_content += f"  - {title} ({formatted_date}) [기사 링크]\n    {url}\n"
         
         html_email_content += "</ul>"
         plain_email_content += "\n"
