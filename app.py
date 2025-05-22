@@ -26,7 +26,7 @@ from news_ai import (
     group_and_select_news,
     evaluate_importance,
 )
-#from SendMail import send_outlook_email, create_email_content
+
 
 # 워드 파일 생성 함수
 def create_word_document(keyword, final_selection, analysis=""):
@@ -303,17 +303,38 @@ with col2:
     st.markdown("회계법인 관점에서 중요한 뉴스를 자동으로 분석하는 AI 도구")
 
 # 주요 기업 리스트 정의
-COMPANIES = ["삼성", "SK", "현대차", "LG", "롯데", "포스코", "한화"]
+COMPANY_CATEGORIES = {
+    "Anchor": ["삼성", "SK", "현대차", "LG", "롯데", "포스코", "한화"],
+    "Growth": ["CJ", "NH", "HD현대", "신한금융", "우리금융"],
+    "Whitespace": ["신세계", "KDB금융", "GS", "LS"]
+}
+
+# 기본 선택 카테고리를 Anchor로 설정
+COMPANIES = COMPANY_CATEGORIES["Anchor"]
 
 # 기업별 연관 키워드 사전 정의
 COMPANY_KEYWORD_MAP = {
+    # Anchor 카테고리
     "포스코": ["포스코", "포스코그룹", "포스코인터내셔널", "포스코DX"],
     "삼성": ["삼성", "삼성전자", "삼성그룹", "삼성바이오로직스", "삼성SDI"],
     "SK": ["SK", "SK하이닉스", "SK이노베이션", "SK텔레콤", "SK그룹"],
     "현대차": ["현대차", "현대자동차", "현대모비스", "현대차그룹", "기아"],
     "LG": ["LG", "LG전자", "LG화학", "LG디스플레이", "LG그룹"],
     "롯데": ["롯데", "롯데그룹", "롯데케미칼", "롯데쇼핑", "롯데제과", "신동빈"],
-    "한화": ["한화", "한화그룹", "한화에어로스페이스", "한화솔루션", "한화생명"]
+    "한화": ["한화", "한화그룹", "한화에어로스페이스", "한화솔루션", "한화생명"],
+    
+    # Growth 카테고리
+    "CJ": ["CJ", "CJ그룹", "씨제이대한통운", "CJ제일제당", "씨제이이앤엠", "씨제이푸드빌", "씨제이지엘에스", "씨제이올리브영"],
+    "NH": ["NH", "엔에이치투자증권", "농협은행", "농협경제지주", "농협금융지주", "농협유통", "농협손해보험", "엔에이치저축은행"],
+    "HD현대": ["HD현대", "에이치디현대", "현대중공업", "에이치디현대오일뱅크", "에이치디한국조선해양", "에이치디현대인프라코어", "에이치디현대일렉트릭", "현대오일터미널", "에이치디현대건설기계"],
+    "신한금융": ["신한금융", "신한은행", "신한투자증권", "신한카드", "신한자산운용", "신한금융지주회사", "신한라이프생명보험", "제주은행"],
+    "우리금융": ["우리금융", "우리은행", "우리투자증권", "우리금융지주", "우리금융캐피탈", "우리카드", "우리종합금융"],
+    
+    # Whitespace 카테고리
+    "신세계": ["신세계", "이마트", "조선호텔앤리조트", "신세계푸드", "신세계인터내셔날", "이마트24", "신세계센트럴시티"],
+    "KDB금융": ["KDB금융", "한국산업은행", "케이디비생명보험", "산은캐피탈", "에이치엠엠", "제주항공", "한국지엠"],
+    "GS": ["GS", "지에스건설", "지에스칼텍스", "지에스리테일", "지에스에너지", "지에스홈쇼핑", "지에스글로벌"],
+    "LS": ["LS", "엘에스일렉트릭", "엘에스전선", "엘에스엠앤엠", "엘에스글로벌인코퍼레이티드", "엘에스아이앤디", "엘에스메탈"]
 }
 
 # 사이드바 설정
@@ -409,6 +430,17 @@ st.sidebar.markdown("---")
 # 기업 선택 섹션 제목
 st.sidebar.markdown("### 🏢 분석할 기업 선택")
 
+# 기업 카테고리 선택
+selected_category = st.sidebar.radio(
+    "기업 카테고리를 선택하세요",
+    options=list(COMPANY_CATEGORIES.keys()),
+    index=0,  # Anchor를 기본값으로 설정
+    help="분석할 기업 카테고리를 선택하세요. Anchor(핵심), Growth(성장), Whitespace(신규) 중에서 선택할 수 있습니다."
+)
+
+# 선택된 카테고리에 따라 COMPANIES 업데이트
+COMPANIES = COMPANY_CATEGORIES[selected_category]
+
 # 새로운 기업 추가 섹션
 new_company = st.sidebar.text_input(
     "새로운 기업 추가",
@@ -418,7 +450,13 @@ new_company = st.sidebar.text_input(
 
 # 새로운 기업 추가 로직 수정
 if new_company and new_company not in COMPANIES:
-    COMPANIES.append(new_company)
+    # 현재 선택된 카테고리에 기업 추가
+    COMPANY_CATEGORIES[selected_category].append(new_company)
+    # 세션 상태의 카테고리도 업데이트
+    if 'company_categories' in st.session_state:
+        st.session_state.company_categories[selected_category].append(new_company)
+    # COMPANIES 리스트도 업데이트
+    COMPANIES = COMPANY_CATEGORIES[selected_category]
     # 새 기업에 대한 기본 연관 키워드 설정 (기업명 자체만 포함)
     COMPANY_KEYWORD_MAP[new_company] = [new_company]
     # 세션 상태도 함께 업데이트
@@ -438,9 +476,18 @@ selected_companies = st.sidebar.multiselect(
 st.sidebar.markdown("### 🔍 연관 키워드 관리")
 st.sidebar.markdown("각 기업의 연관 키워드를 확인하고 편집할 수 있습니다.")
 
-# 세션 상태에 COMPANY_KEYWORD_MAP 저장 (초기화)
+# 세션 상태에 COMPANY_KEYWORD_MAP 및 COMPANY_CATEGORIES 저장 (초기화)
 if 'company_keyword_map' not in st.session_state:
     st.session_state.company_keyword_map = COMPANY_KEYWORD_MAP.copy()
+    
+# 세션 상태에 회사 카테고리 저장 (초기화)
+if 'company_categories' not in st.session_state:
+    st.session_state.company_categories = COMPANY_CATEGORIES.copy()
+else:
+    # 세션에 저장된 카테고리 정보가 있으면 사용
+    COMPANY_CATEGORIES = st.session_state.company_categories
+    # 선택된 카테고리에 따라 COMPANIES 다시 업데이트
+    COMPANIES = COMPANY_CATEGORIES[selected_category]
 
 # 연관 키워드 UI 개선
 if selected_companies:
@@ -593,7 +640,7 @@ exclusion_criteria = st.sidebar.text_area(
 4. 기술 성능, 품질, 테스트 관련 보도
    - 키워드: 우수성 입증, 기술력 인정, 성능 비교, 품질 테스트, 기술 성과
    
-5. 단순 애널리스트의 목표가 관련 보도
+5. 목표가 관련 보도
    - 키워드: 목표가, 목표주가 달성, 목표주가 도달, 목표주가 향상, 목표가↑, 목표가↓""",
     help="분석에서 제외할 뉴스의 기준을 설정하세요.",
     key="exclusion_criteria",
@@ -1309,41 +1356,11 @@ if st.button("뉴스 분석 시작", type="primary"):
     # 이메일 미리보기 표시
     st.markdown(f"<div class='email-preview'>{html_email_content}</div>", unsafe_allow_html=True)
 
-    # # 세션 상태 초기화 (이메일 전송 결과 저장용)
-    # if 'email_sent' not in st.session_state:
-    #     st.session_state.email_sent = False
-    #     st.session_state.email_message = ""
-    #     st.session_state.email_success = False
 
-    # # 이메일 전송 버튼 추가
-    # if st.button("📧 Outlook으로 이메일 보내기", type="primary"):
-    #     with st.spinner("이메일 작성 중..."):
-    #         success, message = send_outlook_email(html_email_content, plain_email_content)
-    #         # 세션 상태에 결과 저장
-    #         st.session_state.email_sent = True
-    #         st.session_state.email_message = message
-    #         st.session_state.email_success = success
-
-    # # 이메일 전송 결과 표시 (세션 상태 사용)
-    # if st.session_state.email_sent:
-    #     if st.session_state.email_success:
-    #         st.success(st.session_state.email_message)
-    #     else:
-    #         st.error(st.session_state.email_message)
-    #         st.error("Outlook 연결에 문제가 있습니다. 다음을 확인해보세요:")
-    #         st.markdown("""
-    #         1. Outlook이 설치되어 있는지 확인하세요.
-    #         2. Outlook이 실행 중인지 확인하세요.
-    #         3. Outlook에 로그인이 되어 있는지 확인하세요.
-    #         4. 방화벽이나 보안 설정이 Outlook 접근을 차단하고 있지 않은지 확인하세요.
-    #         """)
-    #         # 디버그 정보 표시
-    #         with st.expander("오류 상세 정보"):
-    #             st.code(st.session_state.email_message)
 
 else:
-    # 초기 화면 설명
-    st.markdown("""
+    # 초기 화면 설명 (주석 처리됨)
+    """
     ### 👋 PwC 뉴스 분석기에 오신 것을 환영합니다!
     
     이 도구는 입력한 키워드에 대한 최신 뉴스를 자동으로 수집하고, 회계법인 관점에서 중요한 뉴스를 선별하여 분석해드립니다.
@@ -1381,7 +1398,7 @@ else:
     - 선정된 모든 뉴스의 요약 이메일 미리보기
     - 디버그 정보 (시스템 프롬프트, AI 응답 등)
     
-    """)
+    """
 
 # 푸터
 st.markdown("---")
