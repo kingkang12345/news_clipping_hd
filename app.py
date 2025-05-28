@@ -27,6 +27,22 @@ from news_ai import (
     evaluate_importance,
 )
 
+# Import centralized configuration
+from config import (
+    COMPANY_CATEGORIES,
+    COMPANY_KEYWORD_MAP,
+    TRUSTED_PRESS_ALIASES,
+    ADDITIONAL_PRESS_ALIASES,
+    SYSTEM_PROMPT_1,
+    SYSTEM_PROMPT_2,
+    SYSTEM_PROMPT_3,
+    EXCLUSION_CRITERIA,
+    DUPLICATE_HANDLING,
+    SELECTION_CRITERIA, 
+    GPT_MODELS,
+    DEFAULT_GPT_MODEL
+)
+
 
 # 워드 파일 생성 함수
 def create_word_document(keyword, final_selection, analysis=""):
@@ -302,40 +318,8 @@ with col2:
     st.markdown("<h1 class='main-title'>PwC 뉴스 분석기</h1>", unsafe_allow_html=True)
     st.markdown("회계법인 관점에서 중요한 뉴스를 자동으로 분석하는 AI 도구")
 
-# 주요 기업 리스트 정의
-COMPANY_CATEGORIES = {
-    "Anchor": ["삼성", "SK", "현대차", "LG", "롯데", "포스코", "한화"],
-    "Growth": ["CJ", "NH", "HD현대", "신한금융", "우리금융"],
-    "Whitespace": ["신세계", "KDB금융", "GS", "LS"]
-}
-
 # 기본 선택 카테고리를 Anchor로 설정
 COMPANIES = COMPANY_CATEGORIES["Anchor"]
-
-# 기업별 연관 키워드 사전 정의
-COMPANY_KEYWORD_MAP = {
-    # Anchor 카테고리
-    "포스코": ["포스코", "포스코그룹", "포스코인터내셔널", "포스코DX"],
-    "삼성": ["삼성", "삼성전자", "삼성그룹", "삼성바이오로직스", "삼성SDI"],
-    "SK": ["SK", "SK하이닉스", "SK이노베이션", "SK텔레콤", "SK그룹"],
-    "현대차": ["현대차", "현대자동차", "현대모비스", "현대차그룹", "기아"],
-    "LG": ["LG", "LG전자", "LG화학", "LG디스플레이", "LG그룹"],
-    "롯데": ["롯데", "롯데그룹", "롯데케미칼", "롯데쇼핑", "롯데제과", "신동빈"],
-    "한화": ["한화", "한화그룹", "한화에어로스페이스", "한화솔루션", "한화생명"],
-    
-    # Growth 카테고리
-    "CJ": ["CJ", "CJ그룹", "씨제이대한통운", "CJ제일제당", "씨제이이앤엠", "씨제이푸드빌", "씨제이지엘에스", "씨제이올리브영"],
-    "NH": ["NH", "엔에이치투자증권", "농협은행", "농협경제지주", "농협금융지주", "농협유통", "농협손해보험", "엔에이치저축은행"],
-    "HD현대": ["HD현대", "에이치디현대", "현대중공업", "에이치디현대오일뱅크", "에이치디한국조선해양", "에이치디현대인프라코어", "에이치디현대일렉트릭", "현대오일터미널", "에이치디현대건설기계"],
-    "신한금융": ["신한금융", "신한은행", "신한투자증권", "신한카드", "신한자산운용", "신한금융지주회사", "신한라이프생명보험", "제주은행"],
-    "우리금융": ["우리금융", "우리은행", "우리투자증권", "우리금융지주", "우리금융캐피탈", "우리카드", "우리종합금융"],
-    
-    # Whitespace 카테고리
-    "신세계": ["신세계", "이마트", "조선호텔앤리조트", "신세계푸드", "신세계인터내셔날", "이마트24", "신세계센트럴시티"],
-    "KDB금융": ["KDB금융", "한국산업은행", "케이디비생명보험", "산은캐피탈", "에이치엠엠", "제주항공", "한국지엠"],
-    "GS": ["GS", "지에스건설", "지에스칼텍스", "지에스리테일", "지에스에너지", "지에스홈쇼핑", "지에스글로벌"],
-    "LS": ["LS", "엘에스일렉트릭", "엘에스전선", "엘에스엠앤엠", "엘에스글로벌인코퍼레이티드", "엘에스아이앤디", "엘에스메탈"]
-}
 
 # 사이드바 설정
 st.sidebar.title("🔍 분석 설정")
@@ -557,29 +541,19 @@ st.sidebar.markdown("---")
 # GPT 모델 선택 섹션
 st.sidebar.markdown("### 🤖 GPT 모델 선택")
 
-gpt_models = {
-    #"openai.gpt-4.1-2025-04-14" : "chatpwc",#pwc
-    "gpt-4.1": "최신모델",
-    "gpt-4o": "빠르고 실시간, 멀티모달 지원",
-    "gpt-4-turbo": "최고 성능, 비용은 좀 있음",
-    "gpt-4.1-mini": "성능 높고 비용 저렴, 정밀한 분류·요약에 유리",
-    "gpt-4.1-nano": "초고속·초저가, 단순 태그 분류에 적합",
-    "gpt-3.5-turbo": "아주 저렴, 간단한 분류 작업에 적당"
-}
-
 selected_model = st.sidebar.selectbox(
     "분석에 사용할 GPT 모델을 선택하세요",
-    options=list(gpt_models.keys()),
-    index=0,  # gpt-4o를 기본값으로 설정
-    format_func=lambda x: f"{x} - {gpt_models[x]}",
-    help="각 모델의 특성:\n" + "\n".join([f"• {k}: {v}" for k, v in gpt_models.items()])
+    options=list(GPT_MODELS.keys()),
+    index=list(GPT_MODELS.keys()).index(DEFAULT_GPT_MODEL) if DEFAULT_GPT_MODEL in GPT_MODELS else 0,
+    format_func=lambda x: f"{x} - {GPT_MODELS[x]}",
+    help="각 모델의 특성:\n" + "\n".join([f"• {k}: {v}" for k, v in GPT_MODELS.items()])
 )
 
 # 모델 설명 표시
 st.sidebar.markdown(f"""
 <div style='background-color: #f0f2f6; padding: 10px; border-radius: 5px; margin-bottom: 20px;'>
     <strong>선택된 모델:</strong> {selected_model}<br>
-    <strong>특징:</strong> {gpt_models[selected_model]}
+    <strong>특징:</strong> {GPT_MODELS[selected_model]}
 </div>
 """, unsafe_allow_html=True)
 
@@ -595,7 +569,7 @@ st.sidebar.markdown("### 🤖 시스템 프롬프트")
 # 1단계: 제외 판단 시스템 프롬프트
 system_prompt_1 = st.sidebar.text_area(
     "1단계: 제외 판단",
-    value="당신은 회계법인의 뉴스 분석 전문가입니다. 뉴스의 중요성을 판단하여 제외/보류/유지로 분류하는 작업을 수행합니다. 특히 회계법인의 관점에서 중요하지 않은 뉴스(예: 단순 홍보, CSR 활동, 이벤트 등)를 식별하고, 회계 감리나 재무 관련 이슈는 최대한 유지하도록 합니다.",
+    value=SYSTEM_PROMPT_1,
     help="1단계 제외 판단에 사용되는 시스템 프롬프트를 설정하세요.",
     key="system_prompt_1",
     height=300
@@ -604,7 +578,7 @@ system_prompt_1 = st.sidebar.text_area(
 # 2단계: 그룹핑 시스템 프롬프트
 system_prompt_2 = st.sidebar.text_area(
     "2단계: 그룹핑",
-    value="당신은 뉴스 분석 전문가입니다. 유사한 뉴스를 그룹화하고 대표성을 갖춘 기사를 선택하는 작업을 수행합니다. 같은 사안에 대해 숫자, 기업 ,계열사, 맥락, 주요 키워드 등이 유사하면 중복으로 판단합니다. 언론사의 신뢰도와 기사의 상세도를 고려하여 대표 기사를 선정합니다.",
+    value=SYSTEM_PROMPT_2,
     help="2단계 그룹핑에 사용되는 시스템 프롬프트를 설정하세요.",
     key="system_prompt_2",
     height=300
@@ -613,7 +587,7 @@ system_prompt_2 = st.sidebar.text_area(
 # 3단계: 중요도 평가 시스템 프롬프트
 system_prompt_3 = st.sidebar.text_area(
     "3단계: 중요도 평가",
-    value="당신은 회계법인의 전문 애널리스트입니다. 뉴스의 중요도를 평가하고 최종 선정하는 작업을 수행합니다. 특히 회계 감리, 재무제표, 경영권 변동, 주요 계약, 법적 분쟁 등 회계법인의 관점에서 중요한 이슈를 식별하고, 그 중요도를 '상' 또는 '중'으로 평가합니다. 또한 각 뉴스의 핵심 키워드와 관련 계열사를 식별하여 보고합니다.",
+    value=SYSTEM_PROMPT_3,
     help="3단계 중요도 평가에 사용되는 시스템 프롬프트를 설정하세요.",
     key="system_prompt_3",
     height=300
@@ -625,23 +599,7 @@ st.sidebar.markdown("### 📋 1단계: 제외 판단 기준")
 # 제외 기준 설정
 exclusion_criteria = st.sidebar.text_area(
     "❌ 제외 기준",
-    value="""다음 조건 중 하나라도 해당하는 뉴스는 제외하세요:
-
-1. 경기 관련 내용
-   - 스포츠단 관련 내용
-   - 키워드: 야구단, 축구단, 구단, KBO, 프로야구, 감독, 선수
-
-2. 신제품 홍보, 사회공헌, ESG, 기부 등
-   - 키워드: 출시, 기부, 환경 캠페인, 브랜드 홍보, 사회공헌, 나눔, 캠페인 진행, 소비자 반응
-
-3. 단순 시스템 장애, 버그, 서비스 오류
-   - 키워드: 일시 중단, 접속 오류, 서비스 오류, 버그, 점검 중, 업데이트 실패
-
-4. 기술 성능, 품질, 테스트 관련 보도
-   - 키워드: 우수성 입증, 기술력 인정, 성능 비교, 품질 테스트, 기술 성과
-   
-5. 목표가 관련 보도
-   - 키워드: 목표가, 목표주가 달성, 목표주가 도달, 목표주가 향상, 목표가↑, 목표가↓""",
+    value=EXCLUSION_CRITERIA,
     help="분석에서 제외할 뉴스의 기준을 설정하세요.",
     key="exclusion_criteria",
     height = 300
@@ -657,25 +615,7 @@ st.sidebar.markdown("### 📋 2단계: 그룹핑 기준")
 # 중복 처리 기준 설정
 duplicate_handling = st.sidebar.text_area(
     "🔄 중복 처리 기준",
-    value="""중복 뉴스가 존재할 경우 다음 우선순위로 1개만 선택하십시오:
-1. 언론사 우선순위 (높은 순위부터)
-   - 1순위: 경제 전문지 (한국경제, 매일경제, 조선비즈, 파이낸셜뉴스)
-   - 2순위: 종합 일간지 (조선일보, 중앙일보, 동아일보)
-   - 3순위: 통신사 (연합뉴스, 뉴스핌, 뉴시스)
-   - 4순위: 기타 언론사
-
-2. 발행 시간 (같은 언론사 내에서)
-   - 최신 기사 우선
-   - 정확한 시간 정보가 없는 경우, 날짜만 비교
-
-3. 기사 내용의 완성도
-   - 더 자세한 정보를 포함한 기사 우선
-   - 주요 인용문이나 전문가 의견이 포함된 기사 우선
-   - 단순 보도보다 분석적 내용이 포함된 기사 우선
-
-4. 제목의 명확성
-   - 더 구체적이고 명확한 제목의 기사 우선
-   - 핵심 키워드가 포함된 제목 우선""",
+    value=DUPLICATE_HANDLING,
     help="중복된 뉴스를 처리하는 기준을 설정하세요.",
     key="duplicate_handling",
     height=300
@@ -690,32 +630,7 @@ st.sidebar.markdown("### 📋 3단계: 선택 기준")
 # 선택 기준 설정
 selection_criteria = st.sidebar.text_area(
     "✅ 선택 기준",
-    value="""다음 기준에 해당하는 뉴스가 있다면 반드시 선택해야 합니다:
-
-1. 재무/실적 관련 정보 (최우선 순위)
-   - 매출, 영업이익, 순이익 등 실적 발표
-   - 재무제표 관련 정보
-   - 배당 정책 변경
-
-2. 회계/감사 관련 정보 (최우선 순위)
-   - 회계처리 방식 변경
-   - 감사의견 관련 내용
-   - 내부회계관리제도
-   - 회계 감리 결과
-   
-3. 구조적 기업가치 변동 정보 (높은 우선순위)
-    - 신규사업/투자/계약에 대한 내용
-    - 대외 전략(정부 정책, 글로벌 파트너, 지정학 리스크 등)
-    - 기업의 새로운 사업전략 및 방향성, 신사업 등
-    - 기업의 전략 방향성에 영향을 미칠 수 있는 정보
-    - 기존 수입모델/사업구조/고객구조 변화
-    - 공급망/수요망 등 valuechain 관련 내용 (예: 대형 생산지 이전, 주력 사업군 정리 등) 
-
-4. 기업구조 변경 정보 (높은 우선순위)
-   - 인수합병(M&A)
-   - 자회사 설립/매각
-   - 지분 변동
-   - 조직 개편""",
+    value=SELECTION_CRITERIA,
     help="뉴스 선택에 적용할 주요 기준들을 나열하세요.",
     key="selection_criteria",
     height=300
