@@ -13,8 +13,8 @@ import streamlit as st
 import time
 from urllib.parse import urlparse
 
-#import dotenv #pwc
-#dotenv.load_dotenv(override=True) #pwc
+import dotenv #pwc
+dotenv.load_dotenv(override=True) #pwc
 # 상태 타입 정의
 class AgentState(TypedDict):
     news_data: List[dict]
@@ -208,30 +208,87 @@ def collect_news(state: AgentState) -> AgentState:
         # 날짜 필터링
         if start_datetime and end_datetime:
             filtered_news = []
+            date_parsing_stats = {
+                "total": len(unique_news_data),
+                "no_date": 0,
+                "parse_success": 0,
+                "parse_failed": 0,
+                "in_range": 0,
+                "out_of_range": 0
+            }
+            
             for news_item in unique_news_data:
                 try:
                     # 뉴스 날짜 파싱
                     news_date_str = news_item.get('date', '')
                     if not news_date_str:
+                        date_parsing_stats["no_date"] += 1
+                        # 날짜 정보가 없는 뉴스는 포함 (최신 뉴스일 가능성)
+                        filtered_news.append(news_item)
                         continue
-                        
-                    # GMT 형식과 YYYY-MM-DD 형식 모두 처리
-                    try:
-                        news_date = datetime.strptime(news_date_str, '%a, %d %b %Y %H:%M:%S %Z')
-                    except ValueError:
+                    
+                    news_date = None
+                    
+                    # 다양한 날짜 형식 처리 (우선순위 순)
+                    date_formats = [
+                        '%a, %d %b %Y %H:%M:%S %Z',      # GMT 형식: Mon, 01 Jan 2024 12:00:00 GMT
+                        '%a, %d %b %Y %H:%M:%S GMT',     # GMT 형식 (명시적)
+                        '%Y-%m-%d %H:%M:%S',             # YYYY-MM-DD HH:MM:SS
+                        '%Y-%m-%d',                      # YYYY-MM-DD
+                        '%Y년 %m월 %d일',                # 한국어 형식
+                        '%m/%d/%Y',                      # MM/DD/YYYY
+                        '%d/%m/%Y',                      # DD/MM/YYYY
+                        '%Y.%m.%d',                      # YYYY.MM.DD
+                        '%m.%d.%Y',                      # MM.DD.YYYY
+                    ]
+                    
+                    for date_format in date_formats:
                         try:
-                            news_date = datetime.strptime(news_date_str, '%Y-%m-%d')
+                            news_date = datetime.strptime(news_date_str, date_format)
+                            break
                         except ValueError:
                             continue
                     
-                    # 날짜 범위 체크
-                    if start_datetime <= news_date <= end_datetime:
+                    if news_date is None:
+                        date_parsing_stats["parse_failed"] += 1
+                        print(f"날짜 파싱 실패: '{news_date_str}' - 포함하여 처리")
+                        # 파싱 실패한 뉴스도 포함 (최신 뉴스일 가능성)
                         filtered_news.append(news_item)
+                        continue
+                    
+                    date_parsing_stats["parse_success"] += 1
+                    
+                    # 시간대 처리: GMT 시간을 한국 시간(KST)으로 변환
+                    if 'GMT' in news_date_str or 'Z' in news_date_str:
+                        # GMT 시간에 9시간 추가하여 KST로 변환
+                        news_date = news_date + timedelta(hours=9)
+                    
+                    # 시간까지 고려한 정확한 범위 체크 (08:00 기준)
+                    if start_datetime <= news_date <= end_datetime:
+                        date_parsing_stats["in_range"] += 1
+                        filtered_news.append(news_item)
+                    else:
+                        date_parsing_stats["out_of_range"] += 1
+                        print(f"시간 범위 외: {news_date} (범위: {start_datetime} ~ {end_datetime})")
+                        
                 except Exception as e:
-                    print(f"날짜 파싱 오류: {e}")
+                    date_parsing_stats["parse_failed"] += 1
+                    print(f"날짜 처리 오류: {e} - 뉴스 포함하여 처리")
+                    # 오류 발생한 뉴스도 포함
+                    filtered_news.append(news_item)
                     continue
             
             unique_news_data = filtered_news
+            
+            # 날짜 필터링 통계 출력
+            print(f"\n=== 날짜 필터링 통계 ===")
+            print(f"전체 뉴스: {date_parsing_stats['total']}개")
+            print(f"날짜 정보 없음: {date_parsing_stats['no_date']}개")
+            print(f"날짜 파싱 성공: {date_parsing_stats['parse_success']}개")
+            print(f"날짜 파싱 실패: {date_parsing_stats['parse_failed']}개")
+            print(f"날짜 범위 내: {date_parsing_stats['in_range']}개")
+            print(f"날짜 범위 외: {date_parsing_stats['out_of_range']}개")
+            print(f"최종 필터링된 뉴스: {len(unique_news_data)}개")
         
         # 원래 인덱스 추가
         for i, news_item in enumerate(unique_news_data, 1):
