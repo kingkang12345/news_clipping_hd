@@ -10,8 +10,8 @@ st.set_page_config(
 )
 
 
-import time
-from datetime import datetime, timedelta
+
+from datetime import datetime, timedelta, timezone
 import os
 from PIL import Image
 import docx
@@ -40,10 +40,93 @@ from config import (
     DUPLICATE_HANDLING,
     SELECTION_CRITERIA, 
     GPT_MODELS,
-    DEFAULT_GPT_MODEL
+    DEFAULT_GPT_MODEL,
+    # 새로 추가되는 회사별 기준들
+    COMPANY_ADDITIONAL_EXCLUSION_CRITERIA,
+    COMPANY_ADDITIONAL_DUPLICATE_HANDLING,
+    COMPANY_ADDITIONAL_SELECTION_CRITERIA
 )
 
+# 한국 시간대(KST) 정의
+KST = timezone(timedelta(hours=9))
 
+
+def format_date(date_str):
+    """Format date to MM/DD format with proper timezone handling"""
+    try:
+        # Try YYYY-MM-DD format
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+        return date_obj.strftime('%m/%d')
+    except Exception:
+        try:
+            # Try GMT format and convert to KST
+            date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
+            # Convert UTC to KST (add 9 hours)
+            date_obj_kst = date_obj + timedelta(hours=9)
+            return date_obj_kst.strftime('%m/%d')
+        except Exception:
+            try:
+                # Try GMT format without timezone indicator
+                date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S GMT')
+                # Convert UTC to KST (add 9 hours)
+                date_obj_kst = date_obj + timedelta(hours=9)
+                return date_obj_kst.strftime('%m/%d')
+            except Exception:
+                # Return original if parsing fails
+                return date_str if date_str else '날짜 정보 없음'
+
+# 회사별 추가 기준을 적용하는 함수들
+def get_enhanced_exclusion_criteria(companies):
+    """회사별 제외 기준을 추가한 프롬프트 반환 (여러 회사 지원)"""
+    base_criteria = EXCLUSION_CRITERIA
+    
+    # companies가 문자열이면 리스트로 변환
+    if isinstance(companies, str):
+        companies = [companies]
+    
+    # 선택된 모든 회사의 추가 기준을 합침
+    all_additional_criteria = ""
+    for company in companies:
+        additional_criteria = COMPANY_ADDITIONAL_EXCLUSION_CRITERIA.get(company, "")
+        if additional_criteria:
+            all_additional_criteria += additional_criteria
+    
+    return base_criteria + all_additional_criteria
+
+def get_enhanced_duplicate_handling(companies):
+    """회사별 중복 처리 기준을 추가한 프롬프트 반환 (여러 회사 지원)"""
+    base_criteria = DUPLICATE_HANDLING
+    
+    # companies가 문자열이면 리스트로 변환
+    if isinstance(companies, str):
+        companies = [companies]
+    
+    # 선택된 모든 회사의 추가 기준을 합침
+    all_additional_criteria = ""
+    for company in companies:
+        additional_criteria = COMPANY_ADDITIONAL_DUPLICATE_HANDLING.get(company, "")
+        if additional_criteria:
+            all_additional_criteria += additional_criteria
+    
+    return base_criteria + all_additional_criteria
+
+def get_enhanced_selection_criteria(companies):
+    """회사별 선택 기준을 추가한 프롬프트 반환 (여러 회사 지원)"""
+    base_criteria = SELECTION_CRITERIA
+    
+    # companies가 문자열이면 리스트로 변환
+    if isinstance(companies, str):
+        companies = [companies]
+    
+    # 선택된 모든 회사의 추가 기준을 합침
+    all_additional_criteria = ""
+    for company in companies:
+        additional_criteria = COMPANY_ADDITIONAL_SELECTION_CRITERIA.get(company, "")
+        if additional_criteria:
+            all_additional_criteria += additional_criteria
+    
+    return base_criteria + all_additional_criteria
+            
 # 워드 파일 생성 함수
 def create_word_document(keyword, final_selection, analysis=""):
     # 새 워드 문서 생성
@@ -372,15 +455,13 @@ st.sidebar.markdown("### 📅 날짜 필터")
 now = datetime.now()
 
 # 기본 시작 날짜/시간 계산
-if now.weekday() == 0:  # 월요일인 경우
-    # 지난 금요일로 설정
-    default_start_date = now - timedelta(days=3)
-else:
-    # 어제로 설정
-    default_start_date = now - timedelta(days=1)
+default_start_date = now - timedelta(days=1)
 
-# 기본 시작/종료 시간은 오전 8시
-default_time = datetime.strptime("08:00", "%H:%M").time()
+# Set time to 8:00 AM for both start and end - 한국 시간 기준
+start_datetime = datetime.combine(default_start_date.date(), 
+                                    datetime.strptime("08:00", "%H:%M").time(), KST)
+end_datetime = datetime.combine(now.date(), 
+                                datetime.strptime("08:00", "%H:%M").time(), KST)
 
 col1, col2 = st.sidebar.columns(2)
 with col1:
@@ -391,7 +472,7 @@ with col1:
     )
     start_time = st.time_input(
         "시작 시간",
-        value=default_time,
+        value=start_datetime.time(),
         help="시작 날짜의 구체적인 시간을 설정합니다. 기본값은 오전 8시입니다."
     )
 with col2:
@@ -402,7 +483,7 @@ with col2:
     )
     end_time = st.time_input(
         "종료 시간",
-        value=default_time,
+        value=end_datetime.time(),
         help="종료 날짜의 구체적인 시간을 설정합니다. 기본값은 오전 8시입니다."
     )
 
@@ -538,6 +619,156 @@ keywords = list(set(keywords))
 # 구분선 추가
 st.sidebar.markdown("---")
 
+# 회사별 특화 기준 관리 섹션
+st.sidebar.markdown("### 🎯 회사별 특화 기준 관리")
+st.sidebar.markdown("각 기업의 AI 분석 특화 기준을 확인하고 편집할 수 있습니다.")
+
+# 회사별 특화 기준 관리 UI
+if selected_companies:
+    # 선택된 기업 중에서 관리할 기업 선택
+    company_to_manage = st.sidebar.selectbox(
+        "특화 기준을 관리할 기업 선택",
+        options=selected_companies,
+        help="AI 분석 특화 기준을 확인하거나 편집할 기업을 선택하세요.",
+        key="company_to_manage"
+    )
+    
+    if company_to_manage:
+        # 탭 형태로 1~3단계 기준을 구분
+        criteria_tabs = st.sidebar.radio(
+            f"'{company_to_manage}' 특화 기준 선택",
+            ["1단계: 제외 기준", "2단계: 그룹핑 기준", "3단계: 선택 기준"],
+            key=f"criteria_tabs_{company_to_manage}"
+        )
+        
+        # 세션 상태에서 회사별 특화 기준 관리 (초기화)
+        if 'company_additional_exclusion_criteria' not in st.session_state:
+            st.session_state.company_additional_exclusion_criteria = COMPANY_ADDITIONAL_EXCLUSION_CRITERIA.copy()
+        if 'company_additional_duplicate_handling' not in st.session_state:
+            st.session_state.company_additional_duplicate_handling = COMPANY_ADDITIONAL_DUPLICATE_HANDLING.copy()
+        if 'company_additional_selection_criteria' not in st.session_state:
+            st.session_state.company_additional_selection_criteria = COMPANY_ADDITIONAL_SELECTION_CRITERIA.copy()
+        
+        if criteria_tabs == "1단계: 제외 기준":
+            current_criteria = st.session_state.company_additional_exclusion_criteria.get(company_to_manage, "")
+            st.sidebar.markdown(f"**현재 '{company_to_manage}'의 제외 특화 기준:**")
+            if current_criteria.strip():
+                st.sidebar.code(current_criteria, language="text")
+            else:
+                st.sidebar.info("설정된 특화 기준이 없습니다.")
+            
+            # 편집 영역
+            new_exclusion_criteria = st.sidebar.text_area(
+                "제외 특화 기준 편집",
+                value=current_criteria,
+                help="이 회사에만 적용될 추가 제외 기준을 입력하세요.",
+                key=f"edit_exclusion_{company_to_manage}",
+                height=150
+            )
+            
+            # 업데이트 함수
+            def update_exclusion_criteria():
+                st.session_state.company_additional_exclusion_criteria[company_to_manage] = new_exclusion_criteria
+                st.sidebar.success(f"'{company_to_manage}'의 제외 특화 기준이 업데이트되었습니다!")
+            
+            # 업데이트 버튼
+            if st.sidebar.button("제외 기준 업데이트", key=f"update_exclusion_{company_to_manage}", on_click=update_exclusion_criteria):
+                pass
+                
+        elif criteria_tabs == "2단계: 그룹핑 기준":
+            current_criteria = st.session_state.company_additional_duplicate_handling.get(company_to_manage, "")
+            st.sidebar.markdown(f"**현재 '{company_to_manage}'의 그룹핑 특화 기준:**")
+            if current_criteria.strip():
+                st.sidebar.code(current_criteria, language="text")
+            else:
+                st.sidebar.info("설정된 특화 기준이 없습니다.")
+            
+            # 편집 영역
+            new_duplicate_criteria = st.sidebar.text_area(
+                "그룹핑 특화 기준 편집",
+                value=current_criteria,
+                help="이 회사에만 적용될 추가 그룹핑 기준을 입력하세요.",
+                key=f"edit_duplicate_{company_to_manage}",
+                height=150
+            )
+            
+            # 업데이트 함수
+            def update_duplicate_criteria():
+                st.session_state.company_additional_duplicate_handling[company_to_manage] = new_duplicate_criteria
+                st.sidebar.success(f"'{company_to_manage}'의 그룹핑 특화 기준이 업데이트되었습니다!")
+            
+            # 업데이트 버튼
+            if st.sidebar.button("그룹핑 기준 업데이트", key=f"update_duplicate_{company_to_manage}", on_click=update_duplicate_criteria):
+                pass
+                
+        elif criteria_tabs == "3단계: 선택 기준":
+            current_criteria = st.session_state.company_additional_selection_criteria.get(company_to_manage, "")
+            st.sidebar.markdown(f"**현재 '{company_to_manage}'의 선택 특화 기준:**")
+            if current_criteria.strip():
+                st.sidebar.code(current_criteria, language="text")
+            else:
+                st.sidebar.info("설정된 특화 기준이 없습니다.")
+            
+            # 편집 영역
+            new_selection_criteria = st.sidebar.text_area(
+                "선택 특화 기준 편집",
+                value=current_criteria,
+                help="이 회사에만 적용될 추가 선택 기준을 입력하세요.",
+                key=f"edit_selection_{company_to_manage}",
+                height=150
+            )
+            
+            # 업데이트 함수
+            def update_selection_criteria():
+                st.session_state.company_additional_selection_criteria[company_to_manage] = new_selection_criteria
+                st.sidebar.success(f"'{company_to_manage}'의 선택 특화 기준이 업데이트되었습니다!")
+            
+            # 업데이트 버튼
+            if st.sidebar.button("선택 기준 업데이트", key=f"update_selection_{company_to_manage}", on_click=update_selection_criteria):
+                pass
+
+# 미리보기 버튼 - 모든 회사별 특화 기준 확인
+with st.sidebar.expander("🔍 전체 회사별 특화 기준 미리보기"):
+    if selected_companies:
+        # 세션 상태가 초기화되지 않은 경우를 위한 안전장치
+        if 'company_additional_exclusion_criteria' not in st.session_state:
+            st.session_state.company_additional_exclusion_criteria = COMPANY_ADDITIONAL_EXCLUSION_CRITERIA.copy()
+        if 'company_additional_duplicate_handling' not in st.session_state:
+            st.session_state.company_additional_duplicate_handling = COMPANY_ADDITIONAL_DUPLICATE_HANDLING.copy()
+        if 'company_additional_selection_criteria' not in st.session_state:
+            st.session_state.company_additional_selection_criteria = COMPANY_ADDITIONAL_SELECTION_CRITERIA.copy()
+            
+        for i, company in enumerate(selected_companies, 1):
+            st.markdown(f"**{i}. {company}**")
+            
+            # 1단계 제외 기준 (세션 상태에서 가져오기)
+            exclusion_criteria_text = st.session_state.company_additional_exclusion_criteria.get(company, "")
+            if exclusion_criteria_text.strip():
+                st.markdown("📝 **제외 특화 기준:**")
+                st.text(exclusion_criteria_text[:100] + "..." if len(exclusion_criteria_text) > 100 else exclusion_criteria_text)
+            
+            # 2단계 그룹핑 기준 (세션 상태에서 가져오기)
+            duplicate_criteria_text = st.session_state.company_additional_duplicate_handling.get(company, "")
+            if duplicate_criteria_text.strip():
+                st.markdown("🔄 **그룹핑 특화 기준:**")
+                st.text(duplicate_criteria_text[:100] + "..." if len(duplicate_criteria_text) > 100 else duplicate_criteria_text)
+            
+            # 3단계 선택 기준 (세션 상태에서 가져오기)
+            selection_criteria_text = st.session_state.company_additional_selection_criteria.get(company, "")
+            if selection_criteria_text.strip():
+                st.markdown("✅ **선택 특화 기준:**")
+                st.text(selection_criteria_text[:100] + "..." if len(selection_criteria_text) > 100 else selection_criteria_text)
+            
+            if not (exclusion_criteria_text.strip() or duplicate_criteria_text.strip() or selection_criteria_text.strip()):
+                st.info("설정된 특화 기준이 없습니다.")
+            
+            st.markdown("---")
+    else:
+        st.info("기업을 먼저 선택해주세요.")
+
+# 구분선 추가
+st.sidebar.markdown("---")
+
 # GPT 모델 선택 섹션
 st.sidebar.markdown("### 🤖 GPT 모델 선택")
 
@@ -596,13 +827,13 @@ system_prompt_3 = st.sidebar.text_area(
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📋 1단계: 제외 판단 기준")
 
-# 제외 기준 설정
+# 제외 기준 설정 - 기본 기준만 표시하고 사용자 수정 허용
 exclusion_criteria = st.sidebar.text_area(
     "❌ 제외 기준",
     value=EXCLUSION_CRITERIA,
-    help="분석에서 제외할 뉴스의 기준을 설정하세요.",
+    help="분석에서 제외할 뉴스의 기준을 설정하세요. 실제 분석 시 각 회사별 특화 기준이 추가로 적용됩니다.",
     key="exclusion_criteria",
-    height = 300
+    height=300
 )
 
 
@@ -612,11 +843,11 @@ st.sidebar.markdown("---")
 # 2단계: 그룹핑 기준
 st.sidebar.markdown("### 📋 2단계: 그룹핑 기준")
 
-# 중복 처리 기준 설정
+# 중복 처리 기준 설정 - 기본 기준만 표시하고 사용자 수정 허용
 duplicate_handling = st.sidebar.text_area(
     "🔄 중복 처리 기준",
     value=DUPLICATE_HANDLING,
-    help="중복된 뉴스를 처리하는 기준을 설정하세요.",
+    help="중복된 뉴스를 처리하는 기준을 설정하세요. 실제 분석 시 각 회사별 특화 기준이 추가로 적용됩니다.",
     key="duplicate_handling",
     height=300
 )
@@ -627,11 +858,11 @@ st.sidebar.markdown("---")
 # 3단계: 선택 기준
 st.sidebar.markdown("### 📋 3단계: 선택 기준")
 
-# 선택 기준 설정
+# 선택 기준 설정 - 기본 기준만 표시하고 사용자 수정 허용
 selection_criteria = st.sidebar.text_area(
     "✅ 선택 기준",
     value=SELECTION_CRITERIA,
-    help="뉴스 선택에 적용할 주요 기준들을 나열하세요.",
+    help="뉴스 선택에 적용할 주요 기준들을 나열하세요. 실제 분석 시 각 회사별 특화 기준이 추가로 적용됩니다.",
     key="selection_criteria",
     height=300
 )
@@ -720,6 +951,29 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 연관 키워드 표시
             st.write(f"'{company}' 연관 키워드로 검색 중: {', '.join(company_keywords)}")
             
+            # 사용자가 수정한 기준을 기본으로 하고, 해당 회사의 추가 특화 기준만 더함
+            base_exclusion = exclusion_criteria
+            base_duplicate = duplicate_handling
+            base_selection = selection_criteria
+            
+            # 해당 회사의 추가 특화 기준만 가져오기 (세션 상태에서)
+            # 세션 상태가 초기화되지 않은 경우를 위한 안전장치
+            if 'company_additional_exclusion_criteria' not in st.session_state:
+                st.session_state.company_additional_exclusion_criteria = COMPANY_ADDITIONAL_EXCLUSION_CRITERIA.copy()
+            if 'company_additional_duplicate_handling' not in st.session_state:
+                st.session_state.company_additional_duplicate_handling = COMPANY_ADDITIONAL_DUPLICATE_HANDLING.copy()
+            if 'company_additional_selection_criteria' not in st.session_state:
+                st.session_state.company_additional_selection_criteria = COMPANY_ADDITIONAL_SELECTION_CRITERIA.copy()
+                
+            company_additional_exclusion = st.session_state.company_additional_exclusion_criteria.get(company, "")
+            company_additional_duplicate = st.session_state.company_additional_duplicate_handling.get(company, "")
+            company_additional_selection = st.session_state.company_additional_selection_criteria.get(company, "")
+            
+            # 사용자 수정 기준 + 해당 회사 특화 기준 결합
+            enhanced_exclusion_criteria = base_exclusion + company_additional_exclusion
+            enhanced_duplicate_handling = base_duplicate + company_additional_duplicate  
+            enhanced_selection_criteria = base_selection + company_additional_selection
+            
             # initial_state 설정 부분 직전에 valid_press_dict를 딕셔너리로 변환하는 코드 추가
             # 텍스트 에어리어의 내용을 딕셔너리로 변환
             valid_press_config = {}
@@ -779,9 +1033,10 @@ if st.button("뉴스 분석 시작", type="primary"):
                 "retained_news": [],
                 "grouped_news": [],
                 "final_selection": [],
-                "exclusion_criteria": exclusion_criteria,
-                "duplicate_handling": duplicate_handling,
-                "selection_criteria": selection_criteria,
+                # 회사별 enhanced 기준들 적용
+                "exclusion_criteria": enhanced_exclusion_criteria,
+                "duplicate_handling": enhanced_duplicate_handling,
+                "selection_criteria": enhanced_selection_criteria,
                 "system_prompt_1": system_prompt_1,
                 "user_prompt_1": "",
                 "llm_response_1": "",
@@ -798,9 +1053,15 @@ if st.button("뉴스 분석 시작", type="primary"):
                 # 추가 언론사 설정 추가
                 "additional_press_dict": additional_press_config,
                 # 날짜 필터 정보 추가
-                "start_datetime": datetime.combine(start_date, start_time),
-                "end_datetime": datetime.combine(end_date, end_time)
+                "start_datetime": datetime.combine(start_date, start_time, KST),
+                "end_datetime": datetime.combine(end_date, end_time, KST)
+                #"start_datetime": start_datetime,
+                #"end_datetime": end_datetime
             }
+            
+            
+            print(f"[DEBUG] start_datetime: {datetime.combine(start_date, start_time)}")
+            print(f"[DEBUG] end_datetime: {datetime.combine(end_date, end_time)}")
             
             # 1단계: 뉴스 수집
             st.write("1단계: 뉴스 수집 중...")
@@ -922,13 +1183,13 @@ if st.button("뉴스 분석 시작", type="primary"):
                 {expanded_valid_press_str}
 
                 [기존 제외 기준]
-                {exclusion_criteria}
+                {enhanced_exclusion_criteria}
 
                 [기존 중복 처리 기준]
-                {duplicate_handling}
+                {enhanced_duplicate_handling}
 
                 [기존 선택 기준]
-                {selection_criteria}
+                {enhanced_selection_criteria}
 
                 [전체 뉴스 목록]
                 """
@@ -1095,7 +1356,8 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 최종 선정된 뉴스 표시
             for news in final_state["final_selection"]:
                 # 날짜 형식 변환
-                date_str = news.get('date', '')
+                
+                date_str = format_date(news.get('date', ''))
                 
                 try:
                     # YYYY-MM-DD 형식으로 가정
@@ -1215,9 +1477,9 @@ if st.button("뉴스 분석 시작", type="primary"):
     plain_email_content += "[Client Intelligence]\n\n"
     
     def clean_title(title):
-        # - 언론사 패턴만 제거
-        # 예: '제목 - 조선일보' 또는 '제목-조선일보'
-        title = re.sub(r"\s*-\s*[가-힣A-Za-z0-9]+$", "", title).strip()
+        """Clean title by removing the press name pattern at the end"""
+        # Remove the press pattern (e.g., '제목 - 조선일보', '제목-조선일보', '제목 - Chosun Biz')
+        title = re.sub(r"\s*-\s*[가-힣A-Za-z0-9\s]+$", "", title).strip()
         return title
 
     for i, company in enumerate(selected_companies, 1):
