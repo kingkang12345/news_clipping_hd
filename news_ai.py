@@ -8,13 +8,17 @@ import dotenv
 import json
 import re
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import streamlit as st
 import time
 from urllib.parse import urlparse
 
 import dotenv #pwc
 dotenv.load_dotenv(override=True) #pwc
+
+# 한국 시간대(KST) 정의
+KST = timezone(timedelta(hours=9))
+
 # 상태 타입 정의
 class AgentState(TypedDict):
     news_data: List[dict]
@@ -207,6 +211,9 @@ def collect_news(state: AgentState) -> AgentState:
         
         # 날짜 필터링
         if start_datetime and end_datetime:
+            print(f"\n=== 날짜 필터링 시작 ===")
+            print(f"필터링 범위: {start_datetime} ~ {end_datetime}")
+            
             filtered_news = []
             date_parsing_stats = {
                 "total": len(unique_news_data),
@@ -258,10 +265,20 @@ def collect_news(state: AgentState) -> AgentState:
                     
                     date_parsing_stats["parse_success"] += 1
                     
+                    # GMT 시간대 변환 전 날짜 기록
+                    original_news_date = news_date
+                    
                     # 시간대 처리: GMT 시간을 한국 시간(KST)으로 변환
                     if 'GMT' in news_date_str or 'Z' in news_date_str:
                         # GMT 시간에 9시간 추가하여 KST로 변환
                         news_date = news_date + timedelta(hours=9)
+                        # 첫 몇 개 뉴스에 대해서만 변환 정보 출력
+                        if date_parsing_stats["parse_success"] <= 3:
+                            print(f"GMT→KST 변환: {original_news_date} → {news_date}")
+                    
+                    # 파싱된 날짜에 KST 시간대 추가 (시간대가 없는 경우)
+                    if news_date.tzinfo is None:
+                        news_date = news_date.replace(tzinfo=KST)
                     
                     # 시간까지 고려한 정확한 범위 체크 (08:00 기준)
                     if start_datetime <= news_date <= end_datetime:
@@ -269,7 +286,9 @@ def collect_news(state: AgentState) -> AgentState:
                         filtered_news.append(news_item)
                     else:
                         date_parsing_stats["out_of_range"] += 1
-                        print(f"시간 범위 외: {news_date} (범위: {start_datetime} ~ {end_datetime})")
+                        # 범위 외 뉴스 중 첫 몇 개만 출력
+                        if date_parsing_stats["out_of_range"] <= 3:
+                            print(f"시간 범위 외: {news_date} (범위: {start_datetime} ~ {end_datetime})")
                         
                 except Exception as e:
                     date_parsing_stats["parse_failed"] += 1
