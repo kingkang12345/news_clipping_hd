@@ -158,7 +158,7 @@ SELECTION_CRITERIA = """다음 기준에 해당하는 뉴스가 있다면 반드
 
 # GPT Model options
 GPT_MODELS = {
-    "openai.gpt-4.1-2025-04-14" : "chatpwc",#pwc
+    #"openai.gpt-4.1-2025-04-14" : "chatpwc",#pwc
     "gpt-4.1": "최신모델",
     "gpt-4o": "빠르고 실시간, 멀티모달 지원",
     "gpt-4-turbo": "최고 성능, 비용은 좀 있음",
