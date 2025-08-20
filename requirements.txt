@@ -2,6 +2,7 @@ altair==5.5.0
 annotated-types==0.7.0
 anyio==4.9.0
 attrs==25.3.0
+beautifulsoup4==4.12.3
 blinker==1.9.0
 cachetools==5.5.2
 certifi==2025.1.31
@@ -11,6 +12,7 @@ colorama==0.4.6
 distro==1.9.0
 dotenv==0.9.9
 feedparser==6.0.10
+googlenewsdecoder==0.2.8
 gitdb==4.0.12
 GitPython==3.1.44
 h11==0.14.0
@@ -33,6 +35,7 @@ langsmith==0.1.147
 lxml==5.3.2
 MarkupSafe==3.0.2
 narwhals==1.35.0
+newspaper3k==0.2.8
 numpy==2.2.4
 openai==1.74.0
 orjson==3.10.16
@@ -55,6 +58,7 @@ regex==2024.11.6
 requests==2.32.3
 requests-toolbelt==1.0.0
 rpds-py==0.24.0
+selenium==4.27.1
 sgmllib3k==1.0.0
 six==1.17.0
 smmap==5.0.2
@@ -70,4 +74,5 @@ typing_extensions==4.13.2
 tzdata==2025.2
 urllib3==2.4.0
 watchdog==6.0.0
+webdriver-manager==4.0.2
 xxhash==3.5.0
