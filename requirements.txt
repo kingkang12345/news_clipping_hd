@@ -12,7 +12,7 @@ colorama==0.4.6
 distro==1.9.0
 dotenv==0.9.9
 feedparser==6.0.10
-googlenewsdecoder==0.2.8
+googlenewsdecoder==0.1.7
 gitdb==4.0.12
 GitPython==3.1.44
 h11==0.14.0
