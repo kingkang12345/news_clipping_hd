@@ -25,12 +25,17 @@ from news_ai import (
     filter_excluded_news,
     group_and_select_news,
     evaluate_importance,
+    summarize_selected_articles,
 )
 
 # Import centralized configuration
 from config import (
     COMPANY_CATEGORIES,
     COMPANY_KEYWORD_MAP,
+    COMPANY_STRUCTURE_NEW,  # 새로운 구조 추가
+    COMPANY_STRUCTURE_ENGLISH,  # 영어 키워드 구조 추가
+    ANALYSIS_SCOPE_CRITERIA,  # 분석 범위별 특화 기준 추가
+    ANALYSIS_SCOPE_SYSTEM_PROMPTS,  # 분석 범위별 시스템 프롬프트 추가
     TRUSTED_PRESS_ALIASES,
     ADDITIONAL_PRESS_ALIASES,
     SYSTEM_PROMPT_1,
@@ -50,6 +55,71 @@ from config import (
 # 한국 시간대(KST) 정의
 KST = timezone(timedelta(hours=9))
 
+
+def _clean_html_for_display(text: str) -> str:
+    """HTML 태그를 완전히 제거하고 Streamlit 표시용으로 정리"""
+    import re
+    
+    if not text:
+        return ""
+    
+    # 모든 HTML 태그 완전 제거 (더 강력한 정규식)
+    text = re.sub(r'<[^<>]*>', '', text)
+    text = re.sub(r'<[^<>]*', '', text)  # 닫히지 않은 태그도 제거
+    text = re.sub(r'[^<>]*>', '', text)  # 여는 태그가 없는 닫는 태그도 제거
+    
+    # HTML 엔티티 변환
+    html_entities = {
+        '&amp;': '&',
+        '&lt;': '<',
+        '&gt;': '>',
+        '&quot;': '"',
+        '&#39;': "'",
+        '&nbsp;': ' ',
+        '&apos;': "'"
+    }
+    
+    for entity, char in html_entities.items():
+        text = text.replace(entity, char)
+    
+    # 특정 HTML 관련 문자열 제거
+    text = text.replace('</div>', '')
+    text = text.replace('<div>', '')
+    text = text.replace('<br>', '\n')
+    text = text.replace('<br/>', '\n')
+    text = text.replace('<br />', '\n')
+    
+    # 연속된 공백과 줄바꿈 정리
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
+    
+    return text.strip()
+
+def _format_ai_summary_for_box(clean_summary, extraction_success):
+    """AI 요약을 파란색 박스 안에 포함되도록 HTML 포맷팅"""
+    if not clean_summary:
+        return ""
+    
+    if not extraction_success:
+        return f"""
+            <div class="selection-reason">
+                • ⚠️ 원문 추출 실패: {clean_summary}
+            </div>
+        """
+    
+    # 핵심요약, 기술적세부사항, 시사점을 구분하여 줄바꿈 처리
+    formatted_summary = clean_summary.replace('• 핵심 요약:', '<br><br><strong>• 핵심 요약:</strong>')
+    formatted_summary = formatted_summary.replace('• 기술적 세부사항:', '<br><br><strong>• 기술적 세부사항:</strong>')
+    formatted_summary = formatted_summary.replace('• 시사점:', '<br><br><strong>• 시사점:</strong>')
+    
+    # 첫 번째 항목의 앞쪽 <br> 제거
+    if formatted_summary.startswith('<br><br>'):
+        formatted_summary = formatted_summary[8:]
+    
+    return f"""
+        <div class="selection-reason">
+            🤖 AI 원문 요약: <br>{formatted_summary}
+    """
 
 def format_date(date_str):
     """Format date to MM/DD format with proper timezone handling"""
@@ -126,6 +196,56 @@ def get_enhanced_selection_criteria(companies):
             all_additional_criteria += additional_criteria
     
     return base_criteria + all_additional_criteria
+
+def get_scope_based_criteria(analysis_scope, criteria_type="selection_criteria", keywords=None):
+    """분석 범위에 따른 특화 기준을 반환 (키워드 포함)"""
+    if not analysis_scope:
+        return ""
+    
+    # 첫 번째 범위를 주요 기준으로 사용 (본인회사 > 경쟁사 > 산업분야 순서로 우선순위)
+    priority_order = ["본인회사", "경쟁사", "산업분야"]
+    selected_scope = None
+    
+    for scope in priority_order:
+        if scope in analysis_scope:
+            selected_scope = scope
+            break
+    
+    if selected_scope and selected_scope in ANALYSIS_SCOPE_CRITERIA:
+        criteria_template = ANALYSIS_SCOPE_CRITERIA[selected_scope].get(criteria_type, "")
+        
+        # 키워드가 제공된 경우 템플릿에 삽입
+        if keywords and "{keywords}" in criteria_template:
+            keywords_str = ", ".join(keywords) if isinstance(keywords, list) else str(keywords)
+            return criteria_template.format(keywords=keywords_str)
+        
+        return criteria_template
+    
+    return ""
+
+def get_scope_based_system_prompts(analysis_scope):
+    """분석 범위에 따른 시스템 프롬프트를 반환"""
+    if not analysis_scope:
+        return SYSTEM_PROMPT_1, SYSTEM_PROMPT_2, SYSTEM_PROMPT_3
+    
+    # 첫 번째 범위를 주요 기준으로 사용 (본인회사 > 경쟁사 > 산업분야 순서로 우선순위)
+    priority_order = ["본인회사", "경쟁사", "산업분야"]
+    selected_scope = None
+    
+    for scope in priority_order:
+        if scope in analysis_scope:
+            selected_scope = scope
+            break
+    
+    if selected_scope and selected_scope in ANALYSIS_SCOPE_SYSTEM_PROMPTS:
+        scope_prompts = ANALYSIS_SCOPE_SYSTEM_PROMPTS[selected_scope]
+        return (
+            scope_prompts.get("system_prompt_1", SYSTEM_PROMPT_1),
+            scope_prompts.get("system_prompt_2", SYSTEM_PROMPT_2),
+            scope_prompts.get("system_prompt_3", SYSTEM_PROMPT_3)
+        )
+    
+    return SYSTEM_PROMPT_1, SYSTEM_PROMPT_2, SYSTEM_PROMPT_3
             
 # 워드 파일 생성 함수
 def create_word_document(keyword, final_selection, analysis=""):
@@ -404,16 +524,28 @@ with col2:
 # 기본 선택 카테고리를 Anchor로 설정
 COMPANIES = COMPANY_CATEGORIES["Anchor"]
 
+# 세션 상태 초기화 (가장 먼저 실행)
+if 'company_keyword_map' not in st.session_state:
+    st.session_state.company_keyword_map = COMPANY_KEYWORD_MAP.copy()
+
 # 사이드바 설정
 st.sidebar.title("🔍 분석 설정")
 
 # 0단계: 기본 설정
 st.sidebar.markdown("### 📋 0단계: 기본 설정")
 
-# 유효 언론사 설정
-valid_press_dict = st.sidebar.text_area(
-    "📰 유효 언론사 설정",
-    value="""조선일보: ["조선일보", "chosun", "chosun.com"]
+# 기사 원문 요약 옵션
+enable_article_summary = st.sidebar.checkbox(
+    "📄 선정된 기사 원문 요약",
+    value=False,
+    help="선정된 뉴스 기사의 원문을 스크래핑하여 AI 요약을 생성합니다. (시간이 추가로 소요됩니다)"
+)
+
+# 유효 언론사 설정 (숨김 처리)
+with st.sidebar.expander("📰 유효 언론사 설정 (고급)", expanded=False):
+    valid_press_dict = st.text_area(
+        "유효 언론사 설정",
+        value="""조선일보: ["조선일보", "chosun", "chosun.com"]
     중앙일보: ["중앙일보", "joongang", "joongang.co.kr", "joins.com"]
     동아일보: ["동아일보", "donga", "donga.com"]
     조선비즈: ["조선비즈", "chosunbiz", "biz.chosun.com"]
@@ -431,19 +563,20 @@ valid_press_dict = st.sidebar.text_area(
     뉴스핌: ["뉴스핌", "newspim", "newspim.com"]
     뉴시스: ["뉴시스", "newsis", "newsis.com"]
     헤럴드경제: ["헤럴드경제", "herald", "heraldcorp", "heraldcorp.com"]""",
-    help="분석에 포함할 신뢰할 수 있는 언론사와 그 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
-    key="valid_press_dict"
-)
+        help="분석에 포함할 신뢰할 수 있는 언론사와 그 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
+        key="valid_press_dict"
+    )
 
-# 추가 언론사 설정 (재평가 시에만 사용됨)
-additional_press_dict = st.sidebar.text_area(
-    "📰 추가 언론사 설정 (재평가 시에만 사용)",
-    value="""철강금속신문: ["철강금속신문", "snmnews", "snmnews.com"]
+# 추가 언론사 설정 (재평가 시에만 사용됨) - 숨김 처리
+with st.sidebar.expander("📰 추가 언론사 설정 (재평가용)", expanded=False):
+    additional_press_dict = st.text_area(
+        "추가 언론사 설정 (재평가 시에만 사용)",
+        value="""철강금속신문: ["철강금속신문", "snmnews", "snmnews.com"]
     에너지신문: ["에너지신문", "energy-news", "energy-news.co.kr"]
     이코노믹데일리: ["이코노믹데일리", "economidaily", "economidaily.com"]""",
-    help="기본 언론사에서 뉴스가 선택되지 않을 경우, 재평가 단계에서 추가로 고려할 언론사와 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
-    key="additional_press_dict"
-)
+        help="기본 언론사에서 뉴스가 선택되지 않을 경우, 재평가 단계에서 추가로 고려할 언론사와 별칭을 설정하세요. 형식: '언론사: [별칭1, 별칭2, ...]'",
+        key="additional_press_dict"
+    )
 
 # 구분선 추가
 st.sidebar.markdown("---")
@@ -495,276 +628,224 @@ st.sidebar.markdown("---")
 # 기업 선택 섹션 제목
 st.sidebar.markdown("### 🏢 분석할 기업 선택")
 
-# 기업 카테고리 선택
-selected_category = st.sidebar.radio(
-    "기업 카테고리를 선택하세요",
-    options=list(COMPANY_CATEGORIES.keys()),
-    index=0,  # Anchor를 기본값으로 설정
-    help="분석할 기업 카테고리를 선택하세요. Anchor(핵심), Growth(성장), Whitespace(신규) 중에서 선택할 수 있습니다."
+# 현대차그룹 분석 구조 사용
+st.sidebar.markdown("#### 🔥 현대차그룹 분석 구조")
+
+# 현대차그룹 선택 (현재는 하나만 있음)
+selected_group = st.sidebar.selectbox(
+    "그룹 선택",
+    options=list(COMPANY_STRUCTURE_NEW.keys()),
+    index=0,
+    help="분석할 기업 그룹을 선택하세요"
 )
 
-# 선택된 카테고리에 따라 COMPANIES 업데이트
-COMPANIES = COMPANY_CATEGORIES[selected_category]
-
-# 새로운 기업 추가 섹션
-new_company = st.sidebar.text_input(
-    "새로운 기업 추가",
-    value="",
-    help="분석하고 싶은 기업명을 입력하고 Enter를 누르세요. (예: 네이버, 카카오, 현대중공업 등)"
+# 분석 범위 선택
+analysis_scope = st.sidebar.multiselect(
+    "📊 분석 범위 선택",
+    options=["본인회사", "경쟁사", "산업분야"],
+    default=["산업분야"],
+    help="어떤 범위의 뉴스를 분석할지 선택하세요"
 )
 
-# 새로운 기업 추가 로직 수정
-if new_company and new_company not in COMPANIES:
-    # 현재 선택된 카테고리에 기업 추가
-    COMPANY_CATEGORIES[selected_category].append(new_company)
-    # 세션 상태의 카테고리도 업데이트
-    if 'company_categories' in st.session_state:
-        st.session_state.company_categories[selected_category].append(new_company)
-    # COMPANIES 리스트도 업데이트
-    COMPANIES = COMPANY_CATEGORIES[selected_category]
-    # 새 기업에 대한 기본 연관 키워드 설정 (기업명 자체만 포함)
-    COMPANY_KEYWORD_MAP[new_company] = [new_company]
-    # 세션 상태도 함께 업데이트
-    if 'company_keyword_map' in st.session_state:
-        st.session_state.company_keyword_map[new_company] = [new_company]
+# 선택된 키워드들을 수집
+selected_keywords = []
 
-# 키워드 선택을 multiselect로 변경
-selected_companies = st.sidebar.multiselect(
-    "분석할 기업을 선택하세요 (최대 10개)",
-    options=COMPANIES,
-    default=COMPANIES[:10],  # 처음 10개 기업만 기본 선택으로 설정
-    max_selections=10,
-    help="분석하고자 하는 기업을 선택하세요. 한 번에 최대 10개까지 선택 가능합니다."
-)
-
-# 연관 키워드 관리 섹션
-st.sidebar.markdown("### 🔍 연관 키워드 관리")
-st.sidebar.markdown("각 기업의 연관 키워드를 확인하고 편집할 수 있습니다.")
-
-# 세션 상태에 COMPANY_KEYWORD_MAP 및 COMPANY_CATEGORIES 저장 (초기화)
-if 'company_keyword_map' not in st.session_state:
-    st.session_state.company_keyword_map = COMPANY_KEYWORD_MAP.copy()
-    
-# 세션 상태에 회사 카테고리 저장 (초기화)
-if 'company_categories' not in st.session_state:
-    st.session_state.company_categories = COMPANY_CATEGORIES.copy()
-else:
-    # 세션에 저장된 카테고리 정보가 있으면 사용
-    COMPANY_CATEGORIES = st.session_state.company_categories
-    # 선택된 카테고리에 따라 COMPANIES 다시 업데이트
-    COMPANIES = COMPANY_CATEGORIES[selected_category]
-
-# 연관 키워드 UI 개선
-if selected_companies:
-    # 선택된 기업 중에서 관리할 기업 선택
-    company_to_edit = st.sidebar.selectbox(
-        "연관 키워드를 관리할 기업 선택",
-        options=selected_companies,
-        help="키워드를 확인하거나 추가할 기업을 선택하세요."
+if "본인회사" in analysis_scope:
+    st.sidebar.markdown("##### 🏠 본인회사")
+    own_company_types = st.sidebar.multiselect(
+        "계열사 유형 선택",
+        options=list(COMPANY_STRUCTURE_NEW[selected_group]["본인회사"].keys()),
+        default=["핵심계열사"],
+        help="포함할 계열사 유형을 선택하세요"
     )
     
-    if company_to_edit:
-        # 현재 연관 키워드 표시 (세션 상태에서 가져옴)
-        current_keywords = st.session_state.company_keyword_map.get(company_to_edit, [company_to_edit])
-        st.sidebar.markdown(f"**현재 '{company_to_edit}'의 연관 키워드:**")
-        keyword_list = ", ".join(current_keywords)
-        st.sidebar.code(keyword_list)
-        
-        # 연관 키워드 편집
-        new_keywords = st.sidebar.text_area(
-            "연관 키워드 편집",
-            value=keyword_list,
-            help="쉼표(,)로 구분하여 키워드를 추가/편집하세요.",
-            key=f"edit_{company_to_edit}"  # 고유 키 추가
+    for comp_type in own_company_types:
+        companies = COMPANY_STRUCTURE_NEW[selected_group]["본인회사"][comp_type]
+        selected_companies_in_type = st.sidebar.multiselect(
+            f"{comp_type}",
+            options=companies,
+            default=companies[:3] if len(companies) > 3 else companies,
+            key=f"own_{comp_type}"
         )
-        
-        # 키워드 업데이트 함수
-        def update_keywords():
-            # 쉼표로 구분된 텍스트를 리스트로 변환
-            updated_keywords = [kw.strip() for kw in new_keywords.split(",") if kw.strip()]
+        selected_keywords.extend(selected_companies_in_type)
+
+if "경쟁사" in analysis_scope:
+    st.sidebar.markdown("##### ⚔️ 경쟁사")
+    competitor_types = st.sidebar.multiselect(
+        "경쟁사 유형 선택",
+        options=list(COMPANY_STRUCTURE_NEW[selected_group]["경쟁사"].keys()),
+        default=["국내경쟁사"],
+        help="분석할 경쟁사 유형을 선택하세요"
+    )
+    
+    for comp_type in competitor_types:
+        companies = COMPANY_STRUCTURE_NEW[selected_group]["경쟁사"][comp_type]
+        selected_companies_in_type = st.sidebar.multiselect(
+            f"{comp_type}",
+            options=companies,
+            default=companies[:2] if len(companies) > 2 else companies,
+            key=f"comp_{comp_type}"
+        )
+        selected_keywords.extend(selected_companies_in_type)
+
+if "산업분야" in analysis_scope:
+    st.sidebar.markdown("##### 🏭 산업분야")
+    industry_fields = st.sidebar.multiselect(
+        "산업 분야 선택",
+        options=list(COMPANY_STRUCTURE_NEW[selected_group]["산업분야"].keys()),
+        default=["파워트레인","전동화기술"],
+        help="분석할 산업 분야를 선택하세요. 각 분야별로 세부 키워드를 선택할 수 있습니다."
+    )
+    
+    # 각 산업분야별로 세부 키워드 선택 가능하게 함
+    for field in industry_fields:
+        with st.sidebar.expander(f"🔧 {field} 세부 키워드 설정"):
+            # 한국어 키워드
+            korean_keywords = COMPANY_STRUCTURE_NEW[selected_group]["산업분야"][field]
+            selected_korean = st.multiselect(
+                f"🇰🇷 한국어 키워드 ({field})",
+                options=korean_keywords,
+                default=korean_keywords,  # 기본적으로 모든 키워드 선택
+                key=f"korean_{field}"
+            )
             
-            # 업데이트
-            if updated_keywords:
-                st.session_state.company_keyword_map[company_to_edit] = updated_keywords
-                st.sidebar.success(f"'{company_to_edit}'의 연관 키워드가 업데이트되었습니다!")
+            # 영어 키워드
+            english_field_mapping = {
+                "파워트레인": "Powertrain",
+                "전동화기술": "Electrification", 
+                "자율주행": "AutonomousDriving",
+                "커넥티드": "Connected",
+                "모빌리티서비스": "MobilityServices",
+                "제조기술": "ManufacturingTech",
+                "연구개발동향": "RnDTrends",
+                "글로벌동향": "GlobalTrends",
+                "전문자료학회": "TechnicalMaterialsConferences",
+                "OEM전동화전략": "OEMElectrificationStrategy"
+            }
+            
+            english_keywords = []
+            if field in english_field_mapping:
+                english_field = english_field_mapping[field]
+                english_keywords = COMPANY_STRUCTURE_ENGLISH["HyundaiGroup"]["IndustryFields"].get(english_field, [])
+            
+            selected_english = []
+            if english_keywords:
+                selected_english = st.multiselect(
+                    f"🇺🇸 영어 키워드 ({field})",
+                    options=english_keywords,
+                    default=english_keywords,  # 기본적으로 모든 키워드 선택
+                    key=f"english_{field}"
+                )
+            
+            # 선택된 키워드들을 세션 상태에 저장
+            combined_selected = selected_korean + selected_english
+            if combined_selected:
+                st.session_state.company_keyword_map[field] = combined_selected
+                selected_keywords.append(field)  # 분야 이름을 키워드로 추가
             else:
-                # 비어있으면 기업명 자체만 포함
-                st.session_state.company_keyword_map[company_to_edit] = [company_to_edit]
-                st.sidebar.warning(f"연관 키워드가 비어있어 기업명만 포함됩니다.")
-        
-        # 변경 사항 적용 버튼
-        if st.sidebar.button("연관 키워드 업데이트", key=f"update_{company_to_edit}", on_click=update_keywords):
-            pass  # 실제 업데이트는 on_click에서 처리되므로 여기서는 아무것도 하지 않음
+                # 아무것도 선택하지 않은 경우 기본값으로 분야 이름만 사용
+                st.session_state.company_keyword_map[field] = [field]
+                selected_keywords.append(field)
+            
+            # 선택된 키워드 요약 표시
+            if combined_selected:
+                st.info(f"선택됨: 한국어 {len(selected_korean)}개 + 영어 {len(selected_english)}개 = 총 {len(combined_selected)}개")
+
+# 최종 선택된 키워드들을 companies로 설정
+selected_companies = selected_keywords[:10]  # 최대 10개 제한
+
+# 키워드 맵 업데이트 - 이미 위에서 처리됨 (산업분야는 사용자 선택으로, 일반 키워드는 자기 자신)
+for keyword in selected_companies:
+    if 'company_keyword_map' not in st.session_state:
+        st.session_state.company_keyword_map = {}
+    
+    # 산업분야가 아닌 일반 키워드는 자기 자신만 포함
+    if keyword not in COMPANY_STRUCTURE_NEW[selected_group]["산업분야"]:
+        st.session_state.company_keyword_map[keyword] = [keyword]
+
+
+
+
+
+# 선택된 키워드 미리보기
+st.sidebar.markdown("### 🔍 선택된 키워드 미리보기")
+st.sidebar.markdown(f"총 **{len(selected_companies)}개** 키워드가 선택되었습니다.")
+
+# 세션 상태는 이미 위에서 초기화됨
+
+# 추가 키워드 설정
+st.sidebar.markdown("#### ➕ 추가 키워드 설정")
+additional_keywords_text = st.sidebar.text_area(
+    "직접 키워드 추가",
+    value="",
+    placeholder="키워드1, 키워드2, 키워드3\n(쉼표로 구분하여 입력)",
+    help="위에서 선택한 키워드 외에 추가로 분석하고 싶은 키워드를 입력하세요.",
+    key="additional_keywords"
+)
+
+# 추가 키워드 처리
+additional_keywords = []
+if additional_keywords_text.strip():
+    # 쉼표로 구분된 키워드들을 파싱
+    additional_keywords = [kw.strip() for kw in additional_keywords_text.split(',') if kw.strip()]
+    
+    # 추가 키워드들을 세션 상태에 추가
+    for keyword in additional_keywords:
+        if keyword not in st.session_state.company_keyword_map:
+            st.session_state.company_keyword_map[keyword] = [keyword]
+
+# 최종 키워드 리스트 업데이트 (선택된 키워드 + 추가 키워드)
+final_selected_companies = selected_companies + additional_keywords
+final_selected_companies = list(dict.fromkeys(final_selected_companies))  # 중복 제거하면서 순서 유지
+final_selected_companies = final_selected_companies[:15]  # 최대 15개로 확장
 
 # 미리보기 버튼 - 모든 검색어 확인
 with st.sidebar.expander("🔍 전체 검색 키워드 미리보기"):
-    for i, company in enumerate(selected_companies, 1):
-        # 세션 상태에서 키워드 가져오기
-        company_keywords = st.session_state.company_keyword_map.get(company, [company])
-        st.markdown(f"**{i}. {company}**")
-        # 연관 키워드 표시
-        for j, kw in enumerate(company_keywords, 1):
-            st.write(f"  {j}) {kw}")
+    # 선택된 키워드들과 실제 검색어들을 표시
+    st.markdown("**📊 선택된 분석 대상**")
+    
+    if len(selected_companies) > 0:
+        st.markdown("**🏢 구조 기반 선택:**")
+        for i, keyword in enumerate(selected_companies, 1):
+            st.markdown(f"**{i}. {keyword}**")
+            # 실제 검색에 사용될 키워드들 표시
+            if 'company_keyword_map' in st.session_state:
+                search_terms = st.session_state.company_keyword_map.get(keyword, [keyword])
+                if len(search_terms) > 1:
+                    # 한국어와 영어 키워드 분리
+                    korean_terms = [term for term in search_terms if any(ord(char) >= 0xAC00 and ord(char) <= 0xD7AF for char in term)]
+                    english_terms = [term for term in search_terms if not any(ord(char) >= 0xAC00 and ord(char) <= 0xD7AF for char in term)]
+                    
+                    if korean_terms:
+                        st.write(f"   🇰🇷 한국어: {', '.join(korean_terms)}")
+                    if english_terms:
+                        st.write(f"   🇺🇸 영어: {', '.join(english_terms)}")
+                    
+                    st.write(f"   📊 총 {len(search_terms)}개 키워드")
+                else:
+                    st.write(f"   🔍 검색어: {search_terms[0]}")
+    
+    if len(additional_keywords) > 0:
+        st.markdown("**➕ 직접 추가:**")
+        for i, keyword in enumerate(additional_keywords, len(selected_companies) + 1):
+            st.markdown(f"**{i}. {keyword}**")
+            st.write(f"   🔍 검색어: {keyword}")
+    
+    if len(final_selected_companies) == 0:
+        st.info("분석 대상을 선택해주세요.")
+    else:
+        st.success(f"총 **{len(final_selected_companies)}개** 키워드로 분석합니다.")
 
-# 선택된 키워드들을 통합 (검색용)
-keywords = []
-for company in selected_companies:
-    # 기업명 자체와 연관 키워드 모두 추가 (세션 상태에서 가져옴)
-    company_keywords = st.session_state.company_keyword_map.get(company, [company])
-    keywords.extend(company_keywords)
+# 선택된 키워드들을 통합 (검색용) - 최종 리스트 사용
+keywords = final_selected_companies
 
-# 중복 제거
-keywords = list(set(keywords))
+# 중복 제거는 이미 위에서 처리됨
+# keywords = list(set(keywords))
 
 # 구분선 추가
 st.sidebar.markdown("---")
 
-# 회사별 특화 기준 관리 섹션
-st.sidebar.markdown("### 🎯 회사별 특화 기준 관리")
-st.sidebar.markdown("각 기업의 AI 분석 특화 기준을 확인하고 편집할 수 있습니다.")
 
-# 회사별 특화 기준 관리 UI
-if selected_companies:
-    # 선택된 기업 중에서 관리할 기업 선택
-    company_to_manage = st.sidebar.selectbox(
-        "특화 기준을 관리할 기업 선택",
-        options=selected_companies,
-        help="AI 분석 특화 기준을 확인하거나 편집할 기업을 선택하세요.",
-        key="company_to_manage"
-    )
-    
-    if company_to_manage:
-        # 탭 형태로 1~3단계 기준을 구분
-        criteria_tabs = st.sidebar.radio(
-            f"'{company_to_manage}' 특화 기준 선택",
-            ["1단계: 제외 기준", "2단계: 그룹핑 기준", "3단계: 선택 기준"],
-            key=f"criteria_tabs_{company_to_manage}"
-        )
-        
-        # 세션 상태에서 회사별 특화 기준 관리 (초기화)
-        if 'company_additional_exclusion_criteria' not in st.session_state:
-            st.session_state.company_additional_exclusion_criteria = COMPANY_ADDITIONAL_EXCLUSION_CRITERIA.copy()
-        if 'company_additional_duplicate_handling' not in st.session_state:
-            st.session_state.company_additional_duplicate_handling = COMPANY_ADDITIONAL_DUPLICATE_HANDLING.copy()
-        if 'company_additional_selection_criteria' not in st.session_state:
-            st.session_state.company_additional_selection_criteria = COMPANY_ADDITIONAL_SELECTION_CRITERIA.copy()
-        
-        if criteria_tabs == "1단계: 제외 기준":
-            current_criteria = st.session_state.company_additional_exclusion_criteria.get(company_to_manage, "")
-            st.sidebar.markdown(f"**현재 '{company_to_manage}'의 제외 특화 기준:**")
-            if current_criteria.strip():
-                st.sidebar.code(current_criteria, language="text")
-            else:
-                st.sidebar.info("설정된 특화 기준이 없습니다.")
-            
-            # 편집 영역
-            new_exclusion_criteria = st.sidebar.text_area(
-                "제외 특화 기준 편집",
-                value=current_criteria,
-                help="이 회사에만 적용될 추가 제외 기준을 입력하세요.",
-                key=f"edit_exclusion_{company_to_manage}",
-                height=150
-            )
-            
-            # 업데이트 함수
-            def update_exclusion_criteria():
-                st.session_state.company_additional_exclusion_criteria[company_to_manage] = new_exclusion_criteria
-                st.sidebar.success(f"'{company_to_manage}'의 제외 특화 기준이 업데이트되었습니다!")
-            
-            # 업데이트 버튼
-            if st.sidebar.button("제외 기준 업데이트", key=f"update_exclusion_{company_to_manage}", on_click=update_exclusion_criteria):
-                pass
-                
-        elif criteria_tabs == "2단계: 그룹핑 기준":
-            current_criteria = st.session_state.company_additional_duplicate_handling.get(company_to_manage, "")
-            st.sidebar.markdown(f"**현재 '{company_to_manage}'의 그룹핑 특화 기준:**")
-            if current_criteria.strip():
-                st.sidebar.code(current_criteria, language="text")
-            else:
-                st.sidebar.info("설정된 특화 기준이 없습니다.")
-            
-            # 편집 영역
-            new_duplicate_criteria = st.sidebar.text_area(
-                "그룹핑 특화 기준 편집",
-                value=current_criteria,
-                help="이 회사에만 적용될 추가 그룹핑 기준을 입력하세요.",
-                key=f"edit_duplicate_{company_to_manage}",
-                height=150
-            )
-            
-            # 업데이트 함수
-            def update_duplicate_criteria():
-                st.session_state.company_additional_duplicate_handling[company_to_manage] = new_duplicate_criteria
-                st.sidebar.success(f"'{company_to_manage}'의 그룹핑 특화 기준이 업데이트되었습니다!")
-            
-            # 업데이트 버튼
-            if st.sidebar.button("그룹핑 기준 업데이트", key=f"update_duplicate_{company_to_manage}", on_click=update_duplicate_criteria):
-                pass
-                
-        elif criteria_tabs == "3단계: 선택 기준":
-            current_criteria = st.session_state.company_additional_selection_criteria.get(company_to_manage, "")
-            st.sidebar.markdown(f"**현재 '{company_to_manage}'의 선택 특화 기준:**")
-            if current_criteria.strip():
-                st.sidebar.code(current_criteria, language="text")
-            else:
-                st.sidebar.info("설정된 특화 기준이 없습니다.")
-            
-            # 편집 영역
-            new_selection_criteria = st.sidebar.text_area(
-                "선택 특화 기준 편집",
-                value=current_criteria,
-                help="이 회사에만 적용될 추가 선택 기준을 입력하세요.",
-                key=f"edit_selection_{company_to_manage}",
-                height=150
-            )
-            
-            # 업데이트 함수
-            def update_selection_criteria():
-                st.session_state.company_additional_selection_criteria[company_to_manage] = new_selection_criteria
-                st.sidebar.success(f"'{company_to_manage}'의 선택 특화 기준이 업데이트되었습니다!")
-            
-            # 업데이트 버튼
-            if st.sidebar.button("선택 기준 업데이트", key=f"update_selection_{company_to_manage}", on_click=update_selection_criteria):
-                pass
-
-# 미리보기 버튼 - 모든 회사별 특화 기준 확인
-with st.sidebar.expander("🔍 전체 회사별 특화 기준 미리보기"):
-    if selected_companies:
-        # 세션 상태가 초기화되지 않은 경우를 위한 안전장치
-        if 'company_additional_exclusion_criteria' not in st.session_state:
-            st.session_state.company_additional_exclusion_criteria = COMPANY_ADDITIONAL_EXCLUSION_CRITERIA.copy()
-        if 'company_additional_duplicate_handling' not in st.session_state:
-            st.session_state.company_additional_duplicate_handling = COMPANY_ADDITIONAL_DUPLICATE_HANDLING.copy()
-        if 'company_additional_selection_criteria' not in st.session_state:
-            st.session_state.company_additional_selection_criteria = COMPANY_ADDITIONAL_SELECTION_CRITERIA.copy()
-            
-        for i, company in enumerate(selected_companies, 1):
-            st.markdown(f"**{i}. {company}**")
-            
-            # 1단계 제외 기준 (세션 상태에서 가져오기)
-            exclusion_criteria_text = st.session_state.company_additional_exclusion_criteria.get(company, "")
-            if exclusion_criteria_text.strip():
-                st.markdown("📝 **제외 특화 기준:**")
-                st.text(exclusion_criteria_text[:100] + "..." if len(exclusion_criteria_text) > 100 else exclusion_criteria_text)
-            
-            # 2단계 그룹핑 기준 (세션 상태에서 가져오기)
-            duplicate_criteria_text = st.session_state.company_additional_duplicate_handling.get(company, "")
-            if duplicate_criteria_text.strip():
-                st.markdown("🔄 **그룹핑 특화 기준:**")
-                st.text(duplicate_criteria_text[:100] + "..." if len(duplicate_criteria_text) > 100 else duplicate_criteria_text)
-            
-            # 3단계 선택 기준 (세션 상태에서 가져오기)
-            selection_criteria_text = st.session_state.company_additional_selection_criteria.get(company, "")
-            if selection_criteria_text.strip():
-                st.markdown("✅ **선택 특화 기준:**")
-                st.text(selection_criteria_text[:100] + "..." if len(selection_criteria_text) > 100 else selection_criteria_text)
-            
-            if not (exclusion_criteria_text.strip() or duplicate_criteria_text.strip() or selection_criteria_text.strip()):
-                st.info("설정된 특화 기준이 없습니다.")
-            
-            st.markdown("---")
-    else:
-        st.info("기업을 먼저 선택해주세요.")
 
 # 구분선 추가
 st.sidebar.markdown("---")
@@ -794,77 +875,99 @@ st.sidebar.markdown("---")
 # 검색 결과 수 - 고정 값으로 설정
 max_results = 100
 
-# 시스템 프롬프트 설정
-st.sidebar.markdown("### 🤖 시스템 프롬프트")
+# AI 프롬프트 및 분석 기준 설정
+st.sidebar.markdown("### 🤖 AI 분석 단계별 설정")
 
-# 1단계: 제외 판단 시스템 프롬프트
+# 프롬프트 미리보기용 분석 범위 선택
+prompt_preview_scope = st.sidebar.selectbox(
+    "분석 범위 선택",
+    options=["기본", "본인회사", "경쟁사", "산업분야"],
+    index=0,
+    help="어떤 분석 범위의 AI 프롬프트와 기준을 미리보기할지 선택하세요"
+)
+
+# 선택된 범위에 따른 프롬프트와 기준 가져오기
+if prompt_preview_scope == "기본":
+    preview_system_prompt_1 = SYSTEM_PROMPT_1
+    preview_system_prompt_2 = SYSTEM_PROMPT_2
+    preview_system_prompt_3 = SYSTEM_PROMPT_3
+    preview_exclusion_criteria = EXCLUSION_CRITERIA
+    preview_selection_criteria = SELECTION_CRITERIA
+else:
+    # 시스템 프롬프트
+    preview_prompts = get_scope_based_system_prompts([prompt_preview_scope])
+    preview_system_prompt_1 = preview_prompts[0]
+    preview_system_prompt_2 = preview_prompts[1] 
+    preview_system_prompt_3 = preview_prompts[2]
+    
+    # 분석 기준
+    dummy_keywords = ["키워드1", "키워드2"]
+    preview_exclusion_criteria = EXCLUSION_CRITERIA + "\n\n" + get_scope_based_criteria([prompt_preview_scope], "exclusion_criteria", dummy_keywords)
+    preview_selection_criteria = get_scope_based_criteria([prompt_preview_scope], "selection_criteria", dummy_keywords)
+    if not preview_selection_criteria:
+        preview_selection_criteria = SELECTION_CRITERIA
+
+# 단계별 설정
+st.sidebar.markdown(f"#### 📋 1단계: 제외 판단 ({prompt_preview_scope})")
+
+# 1단계 시스템 프롬프트
 system_prompt_1 = st.sidebar.text_area(
-    "1단계: 제외 판단",
-    value=SYSTEM_PROMPT_1,
-    help="1단계 제외 판단에 사용되는 시스템 프롬프트를 설정하세요.",
-    key="system_prompt_1",
-    height=300
+    "🤖 시스템 프롬프트",
+    value=preview_system_prompt_1,
+    help=f"{prompt_preview_scope} 범위의 1단계 제외 판단에 사용되는 AI 시스템 프롬프트입니다.",
+    key=f"system_prompt_1_{prompt_preview_scope}",
+    height=200
 )
 
-# 2단계: 그룹핑 시스템 프롬프트
-system_prompt_2 = st.sidebar.text_area(
-    "2단계: 그룹핑",
-    value=SYSTEM_PROMPT_2,
-    help="2단계 그룹핑에 사용되는 시스템 프롬프트를 설정하세요.",
-    key="system_prompt_2",
-    height=300
-)
-
-# 3단계: 중요도 평가 시스템 프롬프트
-system_prompt_3 = st.sidebar.text_area(
-    "3단계: 중요도 평가",
-    value=SYSTEM_PROMPT_3,
-    help="3단계 중요도 평가에 사용되는 시스템 프롬프트를 설정하세요.",
-    key="system_prompt_3",
-    height=300
-)
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 📋 1단계: 제외 판단 기준")
-
-# 제외 기준 설정 - 기본 기준만 표시하고 사용자 수정 허용
+# 1단계 분석 기준 (유저 프롬프트)
 exclusion_criteria = st.sidebar.text_area(
-    "❌ 제외 기준",
-    value=EXCLUSION_CRITERIA,
-    help="분석에서 제외할 뉴스의 기준을 설정하세요. 실제 분석 시 각 회사별 특화 기준이 추가로 적용됩니다.",
-    key="exclusion_criteria",
-    height=300
+    "👤 분석 기준 (유저 프롬프트)",
+    value=preview_exclusion_criteria,
+    help=f"{prompt_preview_scope} 범위의 제외 기준입니다. 실제 분석 시 선택된 키워드가 적용됩니다.",
+    key=f"exclusion_criteria_{prompt_preview_scope}",
+    height=200
 )
 
-
-# 구분선 추가
 st.sidebar.markdown("---")
+st.sidebar.markdown(f"#### 📋 2단계: 그룹핑 ({prompt_preview_scope})")
 
-# 2단계: 그룹핑 기준
-st.sidebar.markdown("### 📋 2단계: 그룹핑 기준")
+# 2단계 시스템 프롬프트
+system_prompt_2 = st.sidebar.text_area(
+    "🤖 시스템 프롬프트",
+    value=preview_system_prompt_2,
+    help=f"{prompt_preview_scope} 범위의 2단계 그룹핑에 사용되는 AI 시스템 프롬프트입니다.",
+    key=f"system_prompt_2_{prompt_preview_scope}",
+    height=200
+)
 
-# 중복 처리 기준 설정 - 기본 기준만 표시하고 사용자 수정 허용
+# 2단계 분석 기준 (유저 프롬프트)
 duplicate_handling = st.sidebar.text_area(
-    "🔄 중복 처리 기준",
+    "👤 분석 기준 (유저 프롬프트)",
     value=DUPLICATE_HANDLING,
-    help="중복된 뉴스를 처리하는 기준을 설정하세요. 실제 분석 시 각 회사별 특화 기준이 추가로 적용됩니다.",
-    key="duplicate_handling",
-    height=300
+    help="중복된 뉴스를 처리하는 기준을 설정하세요.",
+    key=f"duplicate_handling_{prompt_preview_scope}",
+    height=200
 )
 
-# 구분선 추가
 st.sidebar.markdown("---")
+st.sidebar.markdown(f"#### 📋 3단계: 중요도 평가 ({prompt_preview_scope})")
 
-# 3단계: 선택 기준
-st.sidebar.markdown("### 📋 3단계: 선택 기준")
+# 3단계 시스템 프롬프트
+system_prompt_3 = st.sidebar.text_area(
+    "🤖 시스템 프롬프트",
+    value=preview_system_prompt_3,
+    help=f"{prompt_preview_scope} 범위의 3단계 중요도 평가에 사용되는 AI 시스템 프롬프트입니다.",
+    key=f"system_prompt_3_{prompt_preview_scope}",
+    height=200
+)
 
-# 선택 기준 설정 - 기본 기준만 표시하고 사용자 수정 허용
+# 3단계 분석 기준 (유저 프롬프트)
 selection_criteria = st.sidebar.text_area(
-    "✅ 선택 기준",
-    value=SELECTION_CRITERIA,
-    help="뉴스 선택에 적용할 주요 기준들을 나열하세요. 실제 분석 시 각 회사별 특화 기준이 추가로 적용됩니다.",
-    key="selection_criteria",
-    height=300
+    "👤 분석 기준 (유저 프롬프트)",
+    value=preview_selection_criteria,
+    help=f"{prompt_preview_scope} 범위의 선택 기준입니다. 실제 분석 시 선택된 키워드가 적용됩니다.",
+    key=f"selection_criteria_{prompt_preview_scope}",
+    height=200
 )
 
 # 응답 형식 설정
@@ -943,7 +1046,7 @@ if st.button("뉴스 분석 시작", type="primary"):
     # 모든 키워드 분석 결과를 저장할 딕셔너리
     all_results = {}
     
-    for i, company in enumerate(selected_companies, 1):
+    for i, company in enumerate(final_selected_companies, 1):
         with st.spinner(f"'{company}' 관련 뉴스를 수집하고 분석 중입니다..."):
             # 해당 회사의 연관 키워드 확장 (세션 상태에서 가져옴)
             company_keywords = st.session_state.company_keyword_map.get(company, [company])
@@ -951,28 +1054,67 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 연관 키워드 표시
             st.write(f"'{company}' 연관 키워드로 검색 중: {', '.join(company_keywords)}")
             
-            # 사용자가 수정한 기준을 기본으로 하고, 해당 회사의 추가 특화 기준만 더함
-            base_exclusion = exclusion_criteria
-            base_duplicate = duplicate_handling
-            base_selection = selection_criteria
-            
-            # 해당 회사의 추가 특화 기준만 가져오기 (세션 상태에서)
-            # 세션 상태가 초기화되지 않은 경우를 위한 안전장치
-            if 'company_additional_exclusion_criteria' not in st.session_state:
-                st.session_state.company_additional_exclusion_criteria = COMPANY_ADDITIONAL_EXCLUSION_CRITERIA.copy()
-            if 'company_additional_duplicate_handling' not in st.session_state:
-                st.session_state.company_additional_duplicate_handling = COMPANY_ADDITIONAL_DUPLICATE_HANDLING.copy()
-            if 'company_additional_selection_criteria' not in st.session_state:
-                st.session_state.company_additional_selection_criteria = COMPANY_ADDITIONAL_SELECTION_CRITERIA.copy()
+            # 범위별 특화 기준 적용
+            if 'analysis_scope' in locals():
+                # 범위별 특화 기준 적용 (실제 검색 키워드 포함)
+                scope_selection_criteria = get_scope_based_criteria(analysis_scope, "selection_criteria", company_keywords)
+                scope_exclusion_criteria = get_scope_based_criteria(analysis_scope, "exclusion_criteria", company_keywords)
                 
-            company_additional_exclusion = st.session_state.company_additional_exclusion_criteria.get(company, "")
-            company_additional_duplicate = st.session_state.company_additional_duplicate_handling.get(company, "")
-            company_additional_selection = st.session_state.company_additional_selection_criteria.get(company, "")
-            
-            # 사용자 수정 기준 + 해당 회사 특화 기준 결합
-            enhanced_exclusion_criteria = base_exclusion + company_additional_exclusion
-            enhanced_duplicate_handling = base_duplicate + company_additional_duplicate  
-            enhanced_selection_criteria = base_selection + company_additional_selection
+                # 범위별 시스템 프롬프트 적용
+                scope_system_prompt_1, scope_system_prompt_2, scope_system_prompt_3 = get_scope_based_system_prompts(analysis_scope)
+                
+                # 범위별 기준이 있으면 사용, 없으면 기본 기준 사용
+                if scope_selection_criteria:
+                    enhanced_selection_criteria = scope_selection_criteria
+                else:
+                    enhanced_selection_criteria = selection_criteria
+                    
+                if scope_exclusion_criteria:
+                    enhanced_exclusion_criteria = exclusion_criteria + "\n\n" + scope_exclusion_criteria
+                else:
+                    enhanced_exclusion_criteria = exclusion_criteria
+                    
+                # 중복 처리는 기본 기준 사용
+                enhanced_duplicate_handling = duplicate_handling
+                
+                # 현재 선택된 분석 범위 확인
+                priority_order = ["본인회사", "경쟁사", "산업분야"]
+                selected_scope = None
+                for scope in priority_order:
+                    if scope in analysis_scope:
+                        selected_scope = scope
+                        break
+                
+                st.info(f"🎯 분석 범위별 특화 기준 적용: {', '.join(analysis_scope)}")
+                st.info(f"🔍 실제 검색 키워드: {', '.join(company_keywords)}")
+                if selected_scope:
+                    st.info(f"🤖 시스템 프롬프트 변경: {selected_scope} 분석 모드")
+                
+            else:
+                # analysis_scope가 없는 경우
+                scope_system_prompt_1, scope_system_prompt_2, scope_system_prompt_3 = SYSTEM_PROMPT_1, SYSTEM_PROMPT_2, SYSTEM_PROMPT_3
+                
+                base_exclusion = exclusion_criteria
+                base_duplicate = duplicate_handling
+                base_selection = selection_criteria
+                
+                # 해당 회사의 추가 특화 기준만 가져오기 (세션 상태에서)
+                # 세션 상태가 초기화되지 않은 경우를 위한 안전장치
+                if 'company_additional_exclusion_criteria' not in st.session_state:
+                    st.session_state.company_additional_exclusion_criteria = COMPANY_ADDITIONAL_EXCLUSION_CRITERIA.copy()
+                if 'company_additional_duplicate_handling' not in st.session_state:
+                    st.session_state.company_additional_duplicate_handling = COMPANY_ADDITIONAL_DUPLICATE_HANDLING.copy()
+                if 'company_additional_selection_criteria' not in st.session_state:
+                    st.session_state.company_additional_selection_criteria = COMPANY_ADDITIONAL_SELECTION_CRITERIA.copy()
+                    
+                company_additional_exclusion = st.session_state.company_additional_exclusion_criteria.get(company, "")
+                company_additional_duplicate = st.session_state.company_additional_duplicate_handling.get(company, "")
+                company_additional_selection = st.session_state.company_additional_selection_criteria.get(company, "")
+                
+                # 사용자 수정 기준 + 해당 회사 특화 기준 결합
+                enhanced_exclusion_criteria = base_exclusion + company_additional_exclusion
+                enhanced_duplicate_handling = base_duplicate + company_additional_duplicate  
+                enhanced_selection_criteria = base_selection + company_additional_selection
             
             # initial_state 설정 부분 직전에 valid_press_dict를 딕셔너리로 변환하는 코드 추가
             # 텍스트 에어리어의 내용을 딕셔너리로 변환
@@ -1037,13 +1179,13 @@ if st.button("뉴스 분석 시작", type="primary"):
                 "exclusion_criteria": enhanced_exclusion_criteria,
                 "duplicate_handling": enhanced_duplicate_handling,
                 "selection_criteria": enhanced_selection_criteria,
-                "system_prompt_1": system_prompt_1,
+                "system_prompt_1": scope_system_prompt_1,
                 "user_prompt_1": "",
                 "llm_response_1": "",
-                "system_prompt_2": system_prompt_2,
+                "system_prompt_2": scope_system_prompt_2,
                 "user_prompt_2": "",
                 "llm_response_2": "",
-                "system_prompt_3": system_prompt_3,
+                "system_prompt_3": scope_system_prompt_3,
                 "user_prompt_3": "",
                 "llm_response_3": "",
                 "not_selected_news": [],
@@ -1067,9 +1209,9 @@ if st.button("뉴스 분석 시작", type="primary"):
             st.write("1단계: 뉴스 수집 중...")
             state_after_collection = collect_news(initial_state)
             
-            # 2단계: 유효 언론사 필터링
-            st.write("2단계: 유효 언론사 필터링 중...")
-            state_after_press_filter = filter_valid_press(state_after_collection)
+            # 2단계: 유효 언론사 필터링 (글로벌 뉴스를 위해 건너뜀)
+            st.write("2단계: 날짜 필터링 중...")
+            state_after_press_filter = state_after_collection  # 필터링 없이 그대로 전달
             
             # 3단계: 제외 판단
             st.write("3단계: 제외 판단 중...")
@@ -1082,6 +1224,11 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 5단계: 중요도 평가
             st.write("5단계: 중요도 평가 중...")
             final_state = evaluate_importance(state_after_grouping)
+            
+            # 6단계: 기사 원문 요약 (옵션)
+            if enable_article_summary and final_state.get("final_selection"):
+                st.write("6단계: 선정된 기사 원문 요약 중...")
+                final_state = summarize_selected_articles(final_state)
 
             # 6단계: 0개 선택 시 재평가 (개선된 코드)
             if len(final_state["final_selection"]) == 0:
@@ -1374,6 +1521,11 @@ if st.button("뉴스 분석 시작", type="primary"):
                 url = news.get('url', 'URL 정보 없음')
                 press = news.get('press', '언론사 정보 없음')
                 
+                # AI 요약 텍스트 준비 (HTML 태그 완전 제거)
+                clean_summary = None
+                if news.get('ai_summary'):
+                    clean_summary = _clean_html_for_display(news['ai_summary'])
+                
                 # 뉴스 정보 표시
                 st.markdown(f"""
                     <div class="selected-news" style="{news_style}">
@@ -1385,7 +1537,7 @@ if st.button("뉴스 분석 시작", type="primary"):
                         <div class="news-summary">
                             • 키워드: {', '.join(news['keywords'])} | 관련 계열사: {', '.join(news['affiliates'])} | 언론사: {press}
                         </div>
-                    </div>
+                        {_format_ai_summary_for_box(clean_summary, news.get('extraction_success', False))}
                 """, unsafe_allow_html=True)
                 
                 # 구분선 추가
@@ -1468,13 +1620,14 @@ if st.button("뉴스 분석 시작", type="primary"):
     # HTML 버전 생성
     html_email_content = "<div style='font-family: Arial, sans-serif; max-width: 800px; font-size: 14px; line-height: 1.5;'>"
     
-    html_email_content += "<div style='margin-top: 20px; font-size: 14px;'>안녕하세요, 좋은 아침입니다!<br>오늘의 Client Intelligence 전달 드립니다.<br><br></div>"
-    plain_email_content = "\n안녕하세요, 좋은 아침입니다!\n오늘의 Client Intelligence 전달 드립니다."
+    html_email_content += "<div style='margin-top: 20px; font-size: 14px;'>Daily eP Trend<br></div>"
+    plain_email_content = "\nDaily eP Trend\n"
     
-    html_email_content += "<div style='font-size: 14px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000;'>[Client Intelligence]</div>"
+    html_email_content += "<div style='font-size: 14px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000;'>25-08-18 전동화 일일동향</div>"
+    plain_email_content += "25-08-18 전동화 일일동향\n"
     
     # 일반 텍스트 버전 생성 (복사용)
-    plain_email_content += "[Client Intelligence]\n\n"
+    plain_email_content += "\n\n"
     
     def clean_title(title):
         """Clean title by removing the press name pattern at the end"""
@@ -1482,7 +1635,7 @@ if st.button("뉴스 분석 시작", type="primary"):
         title = re.sub(r"\s*-\s*[가-힣A-Za-z0-9\s]+$", "", title).strip()
         return title
 
-    for i, company in enumerate(selected_companies, 1):
+    for i, company in enumerate(final_selected_companies, 1):
         # HTML 버전에서 키워드를 파란색으로 표시
         html_email_content += f"<div style='font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 10px; color: #0000FF;'>{i}. {company}</div>"
         html_email_content += "<ul style='list-style-type: none; padding-left: 20px; margin: 0;'>"
@@ -1525,8 +1678,8 @@ if st.button("뉴스 분석 시작", type="primary"):
         plain_email_content += "\n"
     
     # 서명 추가
-    html_email_content += "<div style='margin-top: 20px; font-size: 14px;'><br>감사합니다.<br>Client & Market 드림</div>"
-    plain_email_content += "\n감사합니다.\nClient & Market 드림"
+    html_email_content += "<div style='margin-top: 20px; font-size: 14px;'><br>감사합니다.<br>Daily eP Trend</div>"
+    plain_email_content += "\n감사합니다.\nDaily eP Trend"
     
     html_email_content += "</div>"
     

@@ -3,6 +3,7 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from googlenews import GoogleNews
+from web_scraper import NewsWebScraper
 import operator
 import dotenv
 import json
@@ -76,7 +77,7 @@ def call_llm(state: AgentState, system_prompt: str, user_prompt: str, stage: int
             #openai_api_key=os.getenv("OPENAI_API_KEY"), #pwc
             #openai_api_base=os.getenv("OPENAI_BASE_URL"), #pwc
             #model_name = "openai.gpt-4.1-2025-04-14",
-            model_name=state.get("model", "gpt-4o"),
+            model_name=state.get("model", "gpt-4.1"),
             temperature=0.1,
             #max_tokens=2000
         )
@@ -190,12 +191,48 @@ def collect_news(state: AgentState) -> AgentState:
         # 모든 키워드에 대한 뉴스 수집
         all_news_data = []
         
-        # 각 키워드별로 뉴스 검색 및 결과 병합
+        # 키워드 언어별 지역 매핑
+        def is_korean_keyword(keyword):
+            """한국어 키워드인지 판단"""
+            # 한글이 포함되어 있으면 한국어 키워드
+            return bool(re.search(r'[가-힣]', keyword))
+        
+        def get_target_regions(keyword):
+            """키워드에 따른 대상 지역 반환"""
+            if is_korean_keyword(keyword):
+                # 한국어 키워드는 한국에서만 검색
+                return ["한국"]
+            else:
+                # 영어 키워드는 해외 지역에서만 검색 (현대차 남양연구소 우선순위)
+                return ["미국", "독일", "영국", "중국", "일본", "인도"]
+        
+        # 각 키워드별로 뉴스 검색 및 결과 병합 (언어별 지역 최적화)
         for kw in keywords_to_search:
-            print(f"키워드 '{kw}' 검색 중...")
-            news_results = news.search_by_keyword(kw, k=max_results)
+            target_regions = get_target_regions(kw)
+            keyword_type = "한국어" if is_korean_keyword(kw) else "영어"
+            
+            print(f"키워드 '{kw}' ({keyword_type}) 검색 중... 대상 지역: {', '.join(target_regions)}")
+            
+            # 해당 키워드에 적합한 지역에서만 검색
+            if len(target_regions) == 1:
+                # 한국어 키워드 - 한국에서만 검색
+                news_results = news.search_by_keyword(kw, k=max_results, region=target_regions[0])
+            else:
+                # 영어 키워드 - 해외 지역에서 검색 (각 지역당 적은 수)
+                news_results = news.search_multi_region(kw, k=10, regions=target_regions)
+            
             all_news_data.extend(news_results)
             print(f"키워드 '{kw}' 검색 결과: {len(news_results)}개")
+            
+            # 지역별 분포 출력
+            region_count = {}
+            for item in news_results:
+                region = item.get("region", "알 수 없음")
+                region_count[region] = region_count.get(region, 0) + 1
+            
+            if region_count:
+                region_summary = ", ".join([f"{region}:{count}" for region, count in region_count.items()])
+                print(f"  지역별 분포: {region_summary}")
         
         # 중복 URL 제거 (같은 URL이면 중복으로 간주)
         unique_urls = set()
@@ -208,6 +245,16 @@ def collect_news(state: AgentState) -> AgentState:
                 unique_news_data.append(news_item)
         
         print(f"중복 제거 후 전체 뉴스 수: {len(unique_news_data)}개")
+        
+        # 수집된 뉴스의 첫 몇 개 샘플 출력
+        print(f"\n=== 수집된 뉴스 샘플 (처음 5개) ===")
+        for i, news in enumerate(unique_news_data[:5], 1):
+            print(f"{i}. 제목: {news.get('content', '제목 없음')}")
+            print(f"   언론사: {news.get('press', '알 수 없음')}")
+            print(f"   지역: {news.get('region', '알 수 없음')}")
+            print(f"   날짜: {news.get('date', '날짜 없음')}")
+            print(f"   URL: {news.get('url', 'URL 없음')[:80]}...")
+            print("---")
         
         # 날짜 필터링
         if start_datetime and end_datetime:
@@ -330,7 +377,36 @@ def collect_news(state: AgentState) -> AgentState:
         return state
 
 def filter_valid_press(state: AgentState) -> AgentState:
-    """유효 언론사 필터링"""
+    """유효 언론사 필터링 - 글로벌 뉴스 수집을 위해 비활성화"""
+    news_data = state.get("news_data", [])
+    
+    print(f"\n전체 수집된 뉴스 수: {len(news_data)}")
+    print("🌍 글로벌 뉴스 수집을 위해 언론사 필터링을 건너뜁니다.")
+    print("모든 언론사의 뉴스가 다음 단계로 전달됩니다.")
+    
+    # 언론사 필터링 없이 모든 뉴스를 그대로 전달
+    print(f"\n유효 언론사 필터링 건너뜀: {len(news_data)}개 뉴스 모두 전달")
+    
+    # 각 뉴스에 지역 정보가 있다면 표시
+    region_count = {}
+    for news in news_data:
+        region = news.get("region", "알 수 없음")
+        if region in region_count:
+            region_count[region] += 1
+        else:
+            region_count[region] = 1
+    
+    if region_count:
+        print("\n=== 지역별 뉴스 분포 ===")
+        for region, count in region_count.items():
+            print(f"- {region}: {count}개 기사")
+    
+    # state 업데이트 (모든 뉴스 그대로 전달)
+    state["news_data"] = news_data
+    return state
+
+def filter_valid_press_original(state: AgentState) -> AgentState:
+    """유효 언론사 필터링 - 원본 함수 (필요시 복구용)"""
     news_data = state.get("news_data", [])
     
     # UI에서 설정한 유효 언론사 목록 가져오기
@@ -365,121 +441,204 @@ def filter_valid_press(state: AgentState) -> AgentState:
     if not valid_press_config:
         print("\n[DEBUG] 유효한 설정을 찾을 수 없어 기본값 사용")
         valid_press_config = TRUSTED_PRESS_ALIASES
-    
-    print(f"\n전체 수집된 뉴스 수: {len(news_data)}")
-    print(f"\n=== 유효 언론사 설정 ===")
-    for press, aliases in valid_press_config.items():
-        print(f"- {press}: {aliases}")
-    
-    # 문자열 정규화 함수
-    def normalize_string(s):
-        """문자열을 정규화하여 비교하기 쉽게 만듭니다."""
-        if not s:
-            return ""
-        # 소문자로 변환, 선행/후행 공백 제거, 연속된 공백을 하나로 변환
-        return re.sub(r'\s+', ' ', s.lower().strip())
-    
-    # 유효 언론사 뉴스 필터링 함수
-    def filter_news(news_list):
-        valid_news = []
-        for i, news in enumerate(news_list):
-            # 원본 데이터 저장
-            original_press = news.get("press", "")
-            original_url = news.get("url", "")
-            
-            # 정규화된 값 생성
-            press = normalize_string(original_press)
-            url = normalize_string(original_url)
-            
-            print(f"\n=== 뉴스 #{i+1} 필터링 검사 ===")
-            print(f"제목: {news.get('content', '제목 없음')}")
-            print(f"언론사: '{original_press}' (정규화: '{press}')")
-            print(f"URL: {original_url}")
-            domain = urlparse(url).netloc
-            print(f"도메인: {domain}")
-            
-            # 언론사명이나 URL이 신뢰할 수 있는 언론사 목록에 포함되는지 확인
-            is_valid = False
-            matched_press = None
-            matched_alias = None
-            
-            for main_press, aliases in valid_press_config.items():
-                # 별칭들도 정규화
-                normalized_aliases = [normalize_string(alias) for alias in aliases]
-                
-                # 디버깅을 위한 상세 출력
-                press_match_found = False
-                domain_match_found = False
-                
-                # 1. 언론사명 매칭 검사 - 완전 일치 또는 포함 관계 확인
-                for alias in normalized_aliases:
-                    if press == alias or press in alias or alias in press:
-                        press_match_found = True
-                        matched_press = main_press
-                        matched_alias = alias
-                        print(f"✓ 언론사명 매칭 성공: '{press}' 매칭됨 '{alias}' (언론사: {main_press})")
-                        is_valid = True
-                        break
-                
-                # 2. URL 도메인 매칭 검사 (언론사명으로 매칭되지 않은 경우)
-                if not is_valid:
-                    for alias in normalized_aliases:
-                        if domain and (alias in domain or domain in alias):
-                            domain_match_found = True
-                            matched_press = main_press
-                            matched_alias = alias
-                            print(f"✓ 도메인 매칭 성공: '{domain}' 매칭됨 '{alias}' (언론사: {main_press})")
-                            is_valid = True
-                            break
-                
-                if not press_match_found and not domain_match_found:
-                    # 매칭 실패 정보 출력 (너무 상세한 로그는 제거)
-                    # print(f"✗ '{main_press}'의 별칭들과 매칭 실패: {aliases}")
-                    pass
-                
-                if is_valid:
-                    break
-            
-            if is_valid:
-                print(f"✅ 결과: 유효한 언론사 '{matched_press}'로 인식됨 (매칭된 별칭: '{matched_alias}')")
-                # 매칭된 정보 추가
-                news["matched_press"] = matched_press
-                news["matched_alias"] = matched_alias
-                valid_news.append(news)
-            else:
-                print(f"❌ 결과: 유효하지 않은 언론사로 인식됨")
-                # 실패한 경우 상세 로그
-                print(f"[DEBUG] 실패 세부 정보 - 언론사: '{press}', 도메인: '{domain}'")
-                print(f"[DEBUG] 사용 중인 유효 언론사 목록의 키: {list(valid_press_config.keys())}")
-        
-        return valid_news
-    
-    # 모든 뉴스를 한 번에 처리
-    valid_press_news = filter_news(news_data)
-    print(f"\n유효 언론사 뉴스 수: {len(valid_press_news)}")
-    
-    # 정리된 결과 출력
-    print("\n=== 유효 언론사별 필터링 결과 ===")
-    press_count = {}
-    for news in valid_press_news:
-        matched_press = news.get("matched_press", "알 수 없음")
-        if matched_press in press_count:
-            press_count[matched_press] += 1
-        else:
-            press_count[matched_press] = 1
-    
-    for press, count in press_count.items():
-        print(f"- {press}: {count}개 기사")
-    
-    # 유효 언론사 뉴스가 없는 경우
-    if not valid_press_news:
-        print("유효 언론사의 뉴스가 없습니다.")
-        state["news_data"] = []
-        return state
-    
-    # state 업데이트
-    state["news_data"] = valid_press_news
+
     return state
+
+# 추가 단계: 선정된 뉴스 원문 요약
+def summarize_selected_articles(state: AgentState) -> AgentState:
+    """선정된 뉴스 기사의 원문을 스크래핑하고 요약"""
+    try:
+        final_selection = state.get("final_selection", [])
+        
+        if not final_selection:
+            print("요약할 선정된 뉴스가 없습니다.")
+            return state
+        
+        print(f"\n=== 선정된 {len(final_selection)}개 기사 원문 요약 시작 ===")
+        
+        # 하이브리드 웹 스크래퍼 초기화 (AI 폴백 활성화)
+        from web_scraper import HybridNewsWebScraper
+        import os
+        
+        # 환경변수에서 OpenAI API 키 가져오기
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        scraper = HybridNewsWebScraper(
+            openai_api_key=openai_api_key,
+            enable_ai_fallback=True  # AI 폴백 활성화
+        )
+        
+        # 각 선정된 뉴스의 원문 추출 및 요약
+        summarized_articles = []
+        
+        for i, news in enumerate(final_selection, 1):
+            url = news.get('url', '')
+            title = news.get('title', '')
+            
+            print(f"\n[{i}/{len(final_selection)}] 기사 원문 추출 중: {title}")
+            
+            # 원문 추출 (새로운 ExtractionResult 객체 반환)
+            extraction_result = scraper.extract_content(url, timeout=15)
+            
+            if extraction_result.success and extraction_result.content:
+                # AI 요약 생성
+                summary = _generate_article_summary(
+                    extraction_result.content, 
+                    title, 
+                    state.get("system_prompt_3", "")
+                )
+                
+                # 요약 결과 추가
+                news_with_summary = news.copy()
+                news_with_summary['full_content'] = extraction_result.content
+                news_with_summary['ai_summary'] = summary
+                news_with_summary['extraction_success'] = True
+                news_with_summary['extraction_method'] = extraction_result.method.value
+                news_with_summary['extraction_time'] = extraction_result.extraction_time
+                
+                summarized_articles.append(news_with_summary)
+                print(f"✅ 요약 완료: {title[:50]}... (방법: {extraction_result.method.value})")
+                
+            else:
+                # 원문 추출 실패
+                error_msg = extraction_result.error_message if extraction_result else "알 수 없는 오류"
+                news_with_summary = news.copy()
+                news_with_summary['full_content'] = ""
+                news_with_summary['ai_summary'] = f"원문 추출 실패로 요약할 수 없습니다. ({error_msg})"
+                news_with_summary['extraction_success'] = False
+                news_with_summary['extraction_method'] = extraction_result.method.value if extraction_result else "unknown"
+                news_with_summary['extraction_time'] = extraction_result.extraction_time if extraction_result else 0
+                
+                summarized_articles.append(news_with_summary)
+                print(f"❌ 원문 추출 실패: {title[:50]}... ({error_msg})")
+            
+            # 요청 간 지연 (서버 부하 방지)
+            if i < len(final_selection):
+                time.sleep(1)
+        
+        # 결과 업데이트
+        state["final_selection"] = summarized_articles
+        
+        print(f"\n원문 요약 완료: {len(summarized_articles)}개 기사")
+        success_count = sum(1 for article in summarized_articles if article.get('extraction_success', False))
+        print(f"성공: {success_count}개, 실패: {len(summarized_articles) - success_count}개")
+        
+        return state
+        
+    except Exception as e:
+        print(f"기사 요약 중 오류 발생: {e}")
+        return state
+
+def _generate_article_summary(content: str, title: str, system_prompt: str) -> str:
+    """AI를 사용해 기사 요약 생성"""
+    try:
+        # 요약 프롬프트 먼저 정의
+        summary_prompt = f"""
+다음 뉴스 기사를 현대자동차 남양연구소 PT/전동화 개발 인력 관점에서 요약해주세요.
+
+[기사 제목]
+{title}
+
+[기사 본문]
+{content}
+
+[요약 요구사항]
+1. 핵심 내용을 3-5문장으로 요약
+2. 기술적 세부사항이 있다면 구체적으로 언급
+3. 현대차그룹에 미치는 영향이나 시사점 포함
+4. 지역별 동향이라면 해당 지역의 특성 언급
+
+[응답 형식]
+• 핵심 요약: (3-5문장으로 핵심 내용 요약)
+
+• 기술적 세부사항: (기술 관련 구체적 내용이 있다면)
+
+• 시사점: (현대차그룹 관점에서의 의미)
+
+[중요] HTML 태그(<div>, <br>, <span> 등)는 절대 사용하지 마세요. 일반 텍스트로만 응답하세요.
+"""
+        
+        # OpenAI 클라이언트 초기화 (수정된 방식)
+        try:
+            llm = ChatOpenAI(
+                #model="openai.gpt-4.1-2025-04-14",  # pwc
+                model="gpt-4.1",
+                temperature=0.3,
+                request_timeout=30,
+                openai_api_key=os.getenv("OPENAI_API_KEY"),
+                openai_api_base=os.getenv("OPENAI_BASE_URL")
+            )
+            
+            # AI 요약 생성
+            messages = [
+                SystemMessage(content="당신은 자동차 산업 분석 전문가입니다. 뉴스 기사를 현대자동차 연구개발 관점에서 요약하는 작업을 수행합니다."),
+                HumanMessage(content=summary_prompt)
+            ]
+            
+            response = llm.invoke(messages)
+            # HTML 태그 제거 후처리
+            summary_content = response.content
+            return _clean_html_tags(summary_content)
+            
+        except Exception as e:
+            print(f"ChatOpenAI 초기화 또는 호출 실패: {e}")
+            # 간단한 OpenAI 클라이언트로 대체
+            try:
+                from openai import OpenAI
+                client = OpenAI(
+                    api_key=os.getenv("OPENAI_API_KEY"),
+                    base_url=os.getenv("OPENAI_BASE_URL")
+                )
+                
+                # 직접 API 호출
+                response = client.chat.completions.create(
+                    model="gpt-4.1",
+                    messages=[
+                        {"role": "system", "content": "당신은 자동차 산업 분석 전문가입니다. 뉴스 기사를 현대자동차 연구개발 관점에서 요약하는 작업을 수행합니다."},
+                        {"role": "user", "content": summary_prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=1000
+                )
+                # HTML 태그 제거 후처리
+                summary_content = response.choices[0].message.content
+                return _clean_html_tags(summary_content)
+                
+            except Exception as fallback_error:
+                print(f"OpenAI 직접 호출도 실패: {fallback_error}")
+                return f"요약 생성 실패: {str(fallback_error)}"
+        
+    except Exception as e:
+        print(f"AI 요약 생성 실패: {e}")
+        return f"요약 생성 실패: {str(e)}"
+
+def _clean_html_tags(text: str) -> str:
+    """HTML 태그를 제거하고 깔끔한 텍스트로 변환"""
+    import re
+    
+    if not text:
+        return ""
+    
+    # HTML 태그 제거
+    text = re.sub(r'<[^>]+>', '', text)
+    
+    # HTML 엔티티 변환
+    html_entities = {
+        '&amp;': '&',
+        '&lt;': '<',
+        '&gt;': '>',
+        '&quot;': '"',
+        '&#39;': "'",
+        '&nbsp;': ' '
+    }
+    
+    for entity, char in html_entities.items():
+        text = text.replace(entity, char)
+    
+    # 연속된 공백과 줄바꿈 정리
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    
+    return text.strip()
 
 # 1단계: 뉴스 제외 판단
 def filter_excluded_news(state: AgentState) -> AgentState:
@@ -569,6 +728,22 @@ def filter_excluded_news(state: AgentState) -> AgentState:
                 print(f"제외: {len(state['excluded_news'])}개")
                 print(f"보류: {len(state['borderline_news'])}개")
                 print(f"유지: {len(state['retained_news'])}개")
+                
+                # 각 카테고리별 샘플 출력
+                if state['excluded_news']:
+                    print(f"\n제외된 뉴스 샘플 (처음 3개):")
+                    for i, news in enumerate(state['excluded_news'][:3], 1):
+                        print(f"  {i}. {news.get('title', '제목 없음')} - {news.get('reason', '이유 없음')}")
+                
+                if state['retained_news']:
+                    print(f"\n유지된 뉴스 샘플 (처음 3개):")
+                    for i, news in enumerate(state['retained_news'][:3], 1):
+                        print(f"  {i}. {news.get('title', '제목 없음')} - {news.get('reason', '이유 없음')}")
+                
+                if state['borderline_news']:
+                    print(f"\n보류된 뉴스 샘플:")
+                    for i, news in enumerate(state['borderline_news'], 1):
+                        print(f"  {i}. {news.get('title', '제목 없음')} - {news.get('reason', '이유 없음')}")
                 
                 # 성공적으로 파싱되면 루프 종료
                 break
@@ -836,6 +1011,24 @@ def evaluate_importance(state: AgentState) -> AgentState:
                 
                 print(f"최종 선정 뉴스 수: {len(state['final_selection'])}")
                 print(f"미선정 뉴스 수: {len(state['not_selected_news'])}")
+                
+                # 최종 선정된 뉴스 상세 정보 출력
+                if state['final_selection']:
+                    print(f"\n=== 최종 선정된 뉴스 ===")
+                    for i, news in enumerate(state['final_selection'], 1):
+                        print(f"{i}. {news.get('title', '제목 없음')}")
+                        print(f"   중요도: {news.get('importance', '없음')}")
+                        print(f"   언론사: {news.get('press', '알 수 없음')}")
+                        print(f"   선정 사유: {news.get('reason', '이유 없음')}")
+                        print("---")
+                else:
+                    print("\n⚠️ 최종 선정된 뉴스가 없습니다!")
+                    
+                # 미선정 뉴스 샘플 출력
+                if state['not_selected_news']:
+                    print(f"\n미선정 뉴스 샘플 (처음 3개):")
+                    for i, news in enumerate(state['not_selected_news'][:3], 1):
+                        print(f"  {i}. {news.get('title', '제목 없음')} - {news.get('reason', '이유 없음')}")
                 
                 return state
 
