@@ -199,12 +199,8 @@ def collect_news(state: AgentState) -> AgentState:
         
         def get_target_regions(keyword):
             """키워드에 따른 대상 지역 반환"""
-            if is_korean_keyword(keyword):
-                # 한국어 키워드는 한국에서만 검색
-                return ["한국"]
-            else:
-                # 영어 키워드는 해외 지역에서만 검색 (현대차 남양연구소 우선순위)
-                return ["미국", "독일", "영국", "중국", "일본", "인도"]
+            # 모든 키워드에 대해 미국에서만 검색
+            return ["미국"]
         
         # 각 키워드별로 뉴스 검색 및 결과 병합 (언어별 지역 최적화)
         for kw in keywords_to_search:
@@ -213,13 +209,8 @@ def collect_news(state: AgentState) -> AgentState:
             
             print(f"키워드 '{kw}' ({keyword_type}) 검색 중... 대상 지역: {', '.join(target_regions)}")
             
-            # 해당 키워드에 적합한 지역에서만 검색
-            if len(target_regions) == 1:
-                # 한국어 키워드 - 한국에서만 검색
-                news_results = news.search_by_keyword(kw, k=max_results, region=target_regions[0])
-            else:
-                # 영어 키워드 - 해외 지역에서 검색 (각 지역당 적은 수)
-                news_results = news.search_multi_region(kw, k=10, regions=target_regions)
+            # 모든 키워드에 대해 미국에서만 검색
+            news_results = news.search_by_keyword(kw, k=max_results, region="미국")
             
             all_news_data.extend(news_results)
             print(f"키워드 '{kw}' 검색 결과: {len(news_results)}개")

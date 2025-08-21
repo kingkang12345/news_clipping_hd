@@ -31,25 +31,31 @@ COMPANY_STRUCTURE_NEW = {
             "중국브랜드": ["BYD", "니오", "샤오펑", "리오토", "지리", "체리", "창안", "SAIC", "FAW", "동펑", "GAC", "창성", "웨이마", "이드"]
         },
         "산업분야": {
-  "파워트레인": [
-    "파워트레인기술", "엔진기술", "변속기기술", 
-    "연비개선기술", "엔진효율", "파워트레인개발"
-  ],
-  "전동화기술": [
-    "전기차기술", "EV기술", "배터리기술", 
-    "전기모터기술", "충전기술", "충전인프라"
-  ],
-  "자율주행": [
-    "자율주행기술", "ADAS기술", "라이다기술", "LiDAR기술"
-  ],
-  "OEM전략및규제": [
-    "전동화전략", "전동화로드맵", "탄소중립", 
-    "자동차넷제로", "ZEV규제", "EU7규제", "NEV규제"
-  ],
-  "글로벌동향": [
-    "북미전기차시장", "유럽전기차시장", "중국전기차시장"
-  ]
-}
+            "OEM_Keywords": [
+                "Toyota engine", "Toyota transmission", "Toyota hybrid", "Toyota electrification", "Toyota powertrain", "Toyota EV", "Toyota fuel cell",
+                "Ford engine", "Ford transmission", "Ford hybrid", "Ford electrification", "Ford powertrain", "Ford EV", "Ford fuel cell",
+                "Hyundai engine", "Hyundai transmission", "Hyundai hybrid", "Hyundai electrification", "Hyundai powertrain", "Hyundai EV", "Hyundai fuel cell",
+                "Volkswagen engine", "Volkswagen transmission", "Volkswagen hybrid", "Volkswagen electrification", "Volkswagen powertrain", "Volkswagen EV", "Volkswagen fuel cell"
+            ],
+            "Supplier_Keywords": [
+                "Bosch electrification", "Bosch hybrid", "Bosch powertrain", "Bosch EV", "Bosch fuel cell",
+                "Continental electrification", "Continental hybrid", "Continental powertrain", "Continental EV", "Continental fuel cell",
+                "Denso electrification", "Denso hybrid", "Denso powertrain", "Denso EV", "Denso fuel cell",
+                "Magna electrification", "Magna hybrid", "Magna powertrain", "Magna EV", "Magna fuel cell"
+            ],
+            "Industry_Powertrain": [
+                "powertrain", "engine", "transmission", "electrification", "hybrid", "EV motor", "fuel cell", "power module"
+            ],
+            "Battery": [
+                "solid-state battery", "gigafactory", "battery pack restructuring"
+            ],
+            "Policy_Regulation": [
+                "policy regulation automotive", "ZEV mandate", "CAFE standard", "Euro 7 regulation", "China NEV policy"
+            ],
+            "Events_Conferences": [
+                "SAE conference", "Battery Show", "CES automotive", "IAA mobility", "Auto Shanghai"
+            ]
+        }
     }
 }
 
@@ -149,80 +155,82 @@ ANALYSIS_SCOPE_CRITERIA = {
     
     "산업분야": {
         "selection_criteria": """
-대형언론사 및 산업전문언론사 등 신뢰할 수 있는 언론사를 우선순위로 포함하세요.
-        
-검색대상 키워드를 고려하여 선별하세요.
-키워드: {keywords}
+Include only reliable sources (major media and industry-specialized media).
 
-산업 분야 분석 관점에서 다음 기준에 부합하는 뉴스를 선별하세요:
+Scope: Powertrain technologies (conventional and electrified).
+- Conventional P/T: engine, transmission, ICE efficiency, emission regulation
+- Electrified P/T: motor, inverter, e-axle, power electronics, hybrid systems, hydrogen engine
+- Battery: ONLY large-scale form factor innovation, structural changes, strategic investments, OEM-supplier restructuring
 
+Selection criteria:
 
-1. OEM 전동화 전략 동향 (최우선):
-   - 주요 OEM의 전동화 방향성 및 로드맵 발표
-   - 전동화 투자 계획 및 목표 설정
-   - 배터리/충전/수소 등 세부 전략 공개
-   - 탄소중립 목표 및 CO2 감축 계획
-   - 전동화 비중/비율 목표 및 달성 현황
+1. OEM Powertrain & Electrification Strategy:
+   - Roadmaps and direction of major OEMs
+   - Investment and electrification targets
+   - Hybrid/EREV/FHEV/PHEV strategy updates
+   - Hydrogen ICE or fuel cell system integration
+   - CO2 reduction and compliance strategy
 
-2. 지역별 PT/전동화 R&D 동향 (우선순위: 북미→서유럽→중국→아태→브라질→한국):
-   - 해외 연구소 및 기술센터 설립 (특히 북미, 서유럽, 중국)
-   - 지역별 현지화 기술개발 및 적용 사례
-   - 글로벌 기술협력 및 파트너십 체결
-   - 지역별 기술규제 및 표준화 동향 (ZEV, CAFE, EU7, 중국NEV 등)
-   - 국제 기술경쟁력 비교 분석
+2. Regional R&D & Regulation:
+   - Establishment of R&D/tech centers
+   - Localized PT technology deployment
+   - Standards/regulation updates (ZEV, CAFE, EU7, NEV)
+   - Global technical partnerships
 
-3. 전문 자료 및 학회 발표:
-   - SAE, IEEE, FISITA, EVS 등 주요 학회 발표 내용
-   - Battery Show, Auto Shanghai, IAA, CES 등 전시회 기술 공개
-   - 연구기관의 조사 결과 및 시장 전망 보고서
-   - 기술 논문, 백서, 전문 자료 발간
-   - 특허 출원, 기술이전, 라이센싱 동향
+3. Technology Insights & Patents:
+   - Motor/inverter/power module/e-axle innovations
+   - Hybrid system architectures
+   - Transmission/engine efficiency developments
+   - Core IP and patents
+   - Major structural battery innovations (solid-state, form factor)
 
-4. 신기술 인사이트 및 개발 동향:
-   - 미디어데이, 기술발표회 등 기술 공개 행사
-   - 신기술 개발 성과 및 혁신 기술 발표
-   - 차세대 파워트레인 및 전동화 기술 동향
-   - 기술협력, 공동연구, 산학협력 체결
-   - 핵심 기술 특허 및 IP 동향
+4. Conferences/Reports:
+   - SAE, IEEE, EVS, CES, IAA, Auto Shanghai, Battery Show
+   - Market outlooks and research reports relevant to P/T
 
-5. 심층 분석 기사:
-   - 기자의 독자적 해석과 전망
-   - 업계 전문가 인터뷰 및 분석
-   - 시장 트렌드 심층 분석
-   - 기술 발전 동향 및 영향 분석
+5. Deep-Dive Articles:
+   - Expert interviews
+   - Industry analysis of PT tech trends
+   - Policy/market structure implications
+""",
 
-6. 정책 및 시장구조 변화:
-   - 산업 관련 법령 및 규제 변화
-   - 세제 및 정부 지원책 발표
-   - 업계 기업 간 M&A 및 제휴
-   - 산업 플레이어 진입과 철수
-   - 가격 정책 및 시장 가격 변동
+        "duplicate_handling": """When duplicate news exists, select only 1 article using the following priority order:
 
-7. 기타 중요 요소:
-   - 원자재 가격 변동 및 공급망 이슈
-   - 거시 경제의 업종별 영향
-   - 공급망 차질 및 글로벌 이슈
-   - 신기술 등장 및 산업 패러다임 변화
-   - 환경 규제 및 ESG 트렌드 영향
-        """,
+1. Media Source Priority (highest to lowest):
+   - Tier 1 (Industry Specialized): greencarcongress.com, electrive.com, autonews.com, insideevs.com, automotiveinteriorsworld.com, just-auto.com, automotivepowertraintechnologyinternational.com
+   - Tier 2 (Technical/Business): xtech.nikkei.com, nikkei.com, motor-fan.jp, monoist.itmedia.co.jp, newswitch.jp, merkmal-biz.jp, netdenjd.com
+   - Tier 3 (Regional Automotive): autocar.jp, fourin.com, fourin.jp, carnewschina.com, cnevpost.com, autonews.gasgoo.com, moparinsiders.com
+   - Tier 4 (General Tech/Business): electrek.co, techcrunch.com, reuters.com, toyokeizai.net, 36kr.jp, evxl.co
+   - Tier 5 (General News): yomiuri.co.jp, acea.auto
+
+2. Content Depth (within same tier):
+   - More technical detail and strategic context
+   - Expert quotes or industry analysis
+   - Data/numbers supporting the story
+   - Broader implications for powertrain industry
+
+3. Publication Time:
+   - Most recent article preferred
+   - If same day, prefer more comprehensive coverage
+
+4. Title Clarity:
+   - More specific and clear headlines
+   - Contains core powertrain/electrification keywords
+""",
+
         "exclusion_criteria": """
-대형언론사 및 산업전문언론사 등 신뢰할 수 있는 언론사만 포함하세요.
-
-검색대상 키워드를 고려하여 제외 여부를 판단하세요.
-키워드: {keywords}
-
-다음은 제외하세요:
-- 검색 키워드와 직접적인 연관성이 없는 뉴스
-- 명백히 광고성 또는 홍보성 목적의 기사 (단순 제품 출시 발표 등)
-- 루머나 추측에 기반한 확인되지 않은 정보
-- 단순 분기 실적 발표 (R&D 투자 계획이 없는 경우)
-- 일반 인사 발표 (CTO, 연구소장 등 기술 관련 인사 제외)
-- 일회성 마케팅 이벤트 (기술 발표가 아닌 경우)
-- 단순 제품 리뷰 및 성능 비교
-- 초고성능 브랜드 관련 뉴스 (페라리, 람보르기니, 맥라렌 등)
-- 스포츠카/럭셔리카 전용 기술 (양산 적용 가능성이 낮은 경우)
-- 단순 가격 인상/인하 소식 (기술적 배경 설명 없는 경우)
-        """
+Exclude if:
+- Not directly related to powertrain (ICE or xEV PT)
+- Pure marketing/news without strategic or technical P/T content
+- Battery chemistry-level research (anodes, cathodes, electrolytes, materials science)
+- Generic battery supply deals with no PT impact
+- Quarterly earnings or stock news without P/T tech/investment details
+- Executive appointments (except R&D/CTO/technical leadership)
+- One-off marketing events without technology disclosure
+- Product reviews or sales rankings
+- Luxury/sports/supercar news with low mainstream impact
+- Price-only or sales-only articles with no technical/policy drivers
+"""
     }
 }
 
@@ -310,9 +318,53 @@ ANALYSIS_SCOPE_SYSTEM_PROMPTS = {
         "system_prompt_3": """당신은 경쟁사 분석 전문가입니다. 뉴스의 중요도를 평가하고 최종 선정하는 작업을 수행합니다. 경쟁사의 재무/실적 변화, 사업구조 변화, 성장성 관련 이슈, 전략적 변화 등을 중점적으로 식별하고, 그 중요도를 '상' 또는 '중'으로 평가하여 최대 5개 기사를 선별합니다. 또한 각 뉴스의 핵심 키워드와 관련 기업을 식별하여 보고합니다."""
     },
     "산업분야": {
-        "system_prompt_1": """당신은 산업 분석 전문가입니다. 뉴스의 중요성을 판단하여 제외/보류/유지로 분류하는 작업을 수행합니다. 산업 전반의 정책/규제 변화, 시장구조 변화, 기술 트렌드, 원자재 가격 변동, 공급망 이슈 등을 중점적으로 식별하고, 단순 기업 개별 이슈나 홍보성 기사는 제외하도록 합니다.""",
-        "system_prompt_2": """당신은 뉴스 분석 전문가입니다. 유사한 뉴스를 그룹화하고 대표성을 갖춘 기사를 선택하는 작업을 수행합니다. 같은 사안에 대해 숫자, 기업, 계열사, 맥락, 주요 키워드 등이 유사하면 중복으로 판단합니다. 언론사의 신뢰도와 기사의 상세도를 고려하여 대표 기사를 선정합니다.""",
-        "system_prompt_3": """당신은 산업 분석 전문가입니다. 뉴스의 중요도를 평가하고 최종 선정하는 작업을 수행합니다. 산업 전반의 정책/규제 변화, 시장구조 변화, 기술 트렌드, 원자재 가격 변동, 공급망 이슈 등을 중점적으로 식별하고, 그 중요도를 '상' 또는 '중'으로 평가하여 최대 5개 기사를 선별합니다. 또한 각 뉴스의 핵심 키워드와 관련 산업 분야를 식별하여 보고합니다."""
+  "system_prompt_1": """You are an industry analysis expert. 
+Classify each news article into [제외 / 유지 / 보류류].
+
+Scope: Powertrain (P/T) related technologies only. 
+- Include both conventional powertrain (engine, transmission, ICE efficiency, emission standards) 
+- And electrified powertrain (xEV motor, inverter, e-axle, power module, drivetrain electronics, hybrid systems, hydrogen ICE).
+- For battery, include only major structural or strategic news (form factor innovation, solid-state commercialization, large-scale investment, OEM-supplier restructuring). 
+Do not include detailed battery chemistry R&D (anodes, cathodes, electrolytes).
+
+Exclude if:
+- Purely promotional (single product launch with no P/T or electrification context)
+- Detailed battery development stories unrelated to P/T integration
+- Quarterly earnings or stock updates without R&D/investment content
+- Personnel news (except R&D/CTO/technical leadership)
+- Ultra-luxury/sports car exclusives with no mainstream applicability
+- Price-only or sales-only news with no technical/policy angle
+""",
+
+  "system_prompt_2": """You are a news analysis expert. 
+Group highly similar articles into clusters and select one representative article per cluster.
+
+Articles are considered similar if:
+- They cover the same OEM/product/technology 
+- Overlapping facts (numbers, subsidiaries, context)
+- Similar keywords or policy topic
+
+Select as representative:
+- More detailed coverage
+- From reliable sources (major media or industry-specialized outlets)
+- Provides broader technical or strategic context
+""",
+
+  "system_prompt_3": """You are an industry analysis expert. 
+Evaluate and select up to 5 key articles from the grouped set.
+
+For each selected article:
+- Judge importance: High / Medium
+- Extract core keywords (OEMs, technologies, powertrain components, policy terms)
+- Identify related domains (OEM strategy, hybrid/EV PT, regulatory, supply chain, major battery form-factor/structural change)
+
+Prioritize:
+- OEM electrification and powertrain strategy announcements (roadmaps, investments, CO2 targets)
+- Regional PT/electrification R&D developments (priority: North America → Western Europe → China → APAC → Brazil → Korea)
+- Policy/regulation impacting powertrain/electrification (ZEV, CAFE, EU7, NEV mandates)
+- New P/T technologies (hybrid systems, e-axle, inverter, power module, hydrogen ICE, transmission evolution)
+- Battery news ONLY if it represents structural change (form factor, solid-state, OEM investment, major supply chain shift)
+""",
     }
 }
 # 다음 조건 중 하나라도 해당하는 뉴스는 제외하세요:

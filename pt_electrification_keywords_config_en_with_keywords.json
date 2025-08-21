@@ -1,0 +1,130 @@
+{
+  "keywords": [
+    "Toyota engine",
+    "Toyota transmission", 
+    "Toyota hybrid",
+    "Toyota electrification",
+    "Toyota powertrain",
+    "Toyota EV",
+    "Toyota fuel cell",
+    "Ford engine",
+    "Ford transmission",
+    "Ford hybrid", 
+    "Ford electrification",
+    "Ford powertrain",
+    "Ford EV",
+    "Ford fuel cell",
+    "Hyundai engine",
+    "Hyundai transmission",
+    "Hyundai hybrid",
+    "Hyundai electrification", 
+    "Hyundai powertrain",
+    "Hyundai EV",
+    "Hyundai fuel cell",
+    "Volkswagen engine",
+    "Volkswagen transmission",
+    "Volkswagen hybrid",
+    "Volkswagen electrification",
+    "Volkswagen powertrain", 
+    "Volkswagen EV",
+    "Volkswagen fuel cell",
+    "Bosch electrification",
+    "Bosch hybrid",
+    "Bosch powertrain",
+    "Bosch EV",
+    "Bosch fuel cell",
+    "Continental electrification",
+    "Continental hybrid",
+    "Continental powertrain",
+    "Continental EV", 
+    "Continental fuel cell",
+    "Denso electrification",
+    "Denso hybrid",
+    "Denso powertrain",
+    "Denso EV",
+    "Denso fuel cell",
+    "Magna electrification",
+    "Magna hybrid",
+    "Magna powertrain",
+    "Magna EV",
+    "Magna fuel cell",
+    "powertrain",
+    "engine",
+    "transmission", 
+    "electrification",
+    "hybrid",
+    "EV motor",
+    "fuel cell",
+    "power module",
+    "solid-state battery",
+    "gigafactory",
+    "battery pack restructuring",
+    "policy regulation automotive",
+    "ZEV mandate",
+    "CAFE standard",
+    "Euro 7 regulation",
+    "China NEV policy",
+    "SAE conference",
+    "Battery Show",
+    "CES automotive",
+    "IAA mobility",
+    "Auto Shanghai"
+  ],
+
+  "categories": {
+    "oems": [
+      "Toyota","Honda","Nissan","Renault","Mitsubishi","Hyundai","Kia","GM","Ford","Stellantis",
+      "Chrysler","Jeep","Ram","BMW","Mercedes-Benz","Audi","Volkswagen","Porsche","Jaguar",
+      "Land Rover","Volvo","Polestar","Tesla","BYD","Geely","SAIC","Chery","Xpeng","Nio",
+      "Zeekr","Leapmotor","Dongfeng","Tata","Mahindra"
+    ],
+    "suppliers": [
+      "ZF","Bosch","Continental","Magna","Schaeffler","Vitesco","BorgWarner","Valeo",
+      "Infineon","Visteon","CATL","Gotion","Panasonic","LG Energy Solution","Samsung SDI",
+      "Foxtron","DeepDrive","Elaphe","Rimac Technology"
+    ],
+    "conventional_pt": [
+      "engine","combustion engine","ICE","internal combustion","turbocharger",
+      "supercharger","hybrid engine","hydrogen engine","transmission","gearbox",
+      "dual-clutch","CVT","powertrain","driveline","exhaust","fuel efficiency"
+    ],
+    "electrified_pt": [
+      "xEV","HEV","PHEV","FHEV","EREV","BEV","FCEV",
+      "electric motor","traction motor","e-motor","axial-flux","radial-flux",
+      "inverter","converter","power module","SiC","GaN","e-axle","e-drive",
+      "drivetrain electronics","thermal management","cooling system","800V","48V"
+    ],
+    "battery_scope": [
+      "battery form factor","prismatic cell","pouch cell","cylindrical cell",
+      "solid-state battery","semi-solid battery","battery swapping",
+      "battery module","battery pack","structural battery","cell-to-pack","CTP","CTC",
+      "battery investment","gigafactory","supply chain restructuring"
+    ],
+    "policy_regulation": [
+      "CO2 regulation","CAFE standards","EU7","ZEV mandate","EV tax credit",
+      "subsidy","incentive","carbon neutrality","emission standard","regulation","ESG"
+    ],
+    "events": [
+      "SAE","IEEE","EVS","CES","IAA","Auto Shanghai","Battery Show","FISITA",
+      "technical paper","patent","licensing","white paper"
+    ]
+  },
+
+  "boolean_queries": {
+    "broad_pt": "({oems} OR {suppliers}) AND ({conventional_pt} OR {electrified_pt})",
+    "electrified_focus": "({oems} OR {suppliers}) AND ({electrified_pt})",
+    "conventional_focus": "({oems}) AND ({conventional_pt})",
+    "battery_structural": "({battery_scope}) AND (investment OR commercialization OR restructuring)",
+    "policy_focus": "({policy_regulation}) AND ({electrified_pt} OR {conventional_pt})",
+    "event_focus": "({events}) AND ({electrified_pt} OR {battery_scope})"
+  },
+
+  "query_templates": {
+    "google_news_rss_en": "https://news.google.com/rss/search?q={query}+when:{freshness}&hl=en-US&gl=US&ceid=US:en",
+    "naver_news_api": "https://openapi.naver.com/v1/search/news.json?query={query}&sort=date"
+  },
+
+  "minus_terms": [
+    "smartphone","scooter","bike","bicycle","crypto","stock price","review"
+  ]
+}

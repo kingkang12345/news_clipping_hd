@@ -693,54 +693,25 @@ if "산업분야" in analysis_scope:
     industry_fields = st.sidebar.multiselect(
         "산업 분야 선택",
         options=list(COMPANY_STRUCTURE_NEW[selected_group]["산업분야"].keys()),
-        default=["파워트레인","전동화기술"],
+        default=["OEM_Keywords","Supplier_Keywords"],
         help="분석할 산업 분야를 선택하세요. 각 분야별로 세부 키워드를 선택할 수 있습니다."
     )
     
     # 각 산업분야별로 세부 키워드 선택 가능하게 함
     for field in industry_fields:
         with st.sidebar.expander(f"🔧 {field} 세부 키워드 설정"):
-            # 한국어 키워드
-            korean_keywords = COMPANY_STRUCTURE_NEW[selected_group]["산업분야"][field]
-            selected_korean = st.multiselect(
-                f"🇰🇷 한국어 키워드 ({field})",
-                options=korean_keywords,
-                default=korean_keywords,  # 기본적으로 모든 키워드 선택
-                key=f"korean_{field}"
+            # 새로운 영어 키워드 구조에서 키워드 가져오기
+            field_keywords = COMPANY_STRUCTURE_NEW[selected_group]["산업분야"][field]
+            selected_field_keywords = st.multiselect(
+                f"🇺🇸 {field} 키워드",
+                options=field_keywords,
+                default=field_keywords,  # 기본적으로 모든 키워드 선택
+                key=f"field_{field}"
             )
             
-            # 영어 키워드
-            english_field_mapping = {
-                "파워트레인": "Powertrain",
-                "전동화기술": "Electrification", 
-                "자율주행": "AutonomousDriving",
-                "커넥티드": "Connected",
-                "모빌리티서비스": "MobilityServices",
-                "제조기술": "ManufacturingTech",
-                "연구개발동향": "RnDTrends",
-                "글로벌동향": "GlobalTrends",
-                "전문자료학회": "TechnicalMaterialsConferences",
-                "OEM전동화전략": "OEMElectrificationStrategy"
-            }
-            
-            english_keywords = []
-            if field in english_field_mapping:
-                english_field = english_field_mapping[field]
-                english_keywords = COMPANY_STRUCTURE_ENGLISH["HyundaiGroup"]["IndustryFields"].get(english_field, [])
-            
-            selected_english = []
-            if english_keywords:
-                selected_english = st.multiselect(
-                    f"🇺🇸 영어 키워드 ({field})",
-                    options=english_keywords,
-                    default=english_keywords,  # 기본적으로 모든 키워드 선택
-                    key=f"english_{field}"
-                )
-            
             # 선택된 키워드들을 세션 상태에 저장
-            combined_selected = selected_korean + selected_english
-            if combined_selected:
-                st.session_state.company_keyword_map[field] = combined_selected
+            if selected_field_keywords:
+                st.session_state.company_keyword_map[field] = selected_field_keywords
                 selected_keywords.append(field)  # 분야 이름을 키워드로 추가
             else:
                 # 아무것도 선택하지 않은 경우 기본값으로 분야 이름만 사용
@@ -748,8 +719,8 @@ if "산업분야" in analysis_scope:
                 selected_keywords.append(field)
             
             # 선택된 키워드 요약 표시
-            if combined_selected:
-                st.info(f"선택됨: 한국어 {len(selected_korean)}개 + 영어 {len(selected_english)}개 = 총 {len(combined_selected)}개")
+            if selected_field_keywords:
+                st.info(f"선택됨: {len(selected_field_keywords)}개 키워드")
 
 # 최종 선택된 키워드들을 companies로 설정
 selected_companies = selected_keywords[:10]  # 최대 10개 제한
@@ -812,15 +783,7 @@ with st.sidebar.expander("🔍 전체 검색 키워드 미리보기"):
             if 'company_keyword_map' in st.session_state:
                 search_terms = st.session_state.company_keyword_map.get(keyword, [keyword])
                 if len(search_terms) > 1:
-                    # 한국어와 영어 키워드 분리
-                    korean_terms = [term for term in search_terms if any(ord(char) >= 0xAC00 and ord(char) <= 0xD7AF for char in term)]
-                    english_terms = [term for term in search_terms if not any(ord(char) >= 0xAC00 and ord(char) <= 0xD7AF for char in term)]
-                    
-                    if korean_terms:
-                        st.write(f"   🇰🇷 한국어: {', '.join(korean_terms)}")
-                    if english_terms:
-                        st.write(f"   🇺🇸 영어: {', '.join(english_terms)}")
-                    
+                    st.write(f"   🇺🇸 영어 키워드: {', '.join(search_terms)}")
                     st.write(f"   📊 총 {len(search_terms)}개 키워드")
                 else:
                     st.write(f"   🔍 검색어: {search_terms[0]}")
