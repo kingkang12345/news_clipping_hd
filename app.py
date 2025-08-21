@@ -693,7 +693,7 @@ if "산업분야" in analysis_scope:
     industry_fields = st.sidebar.multiselect(
         "산업 분야 선택",
         options=list(COMPANY_STRUCTURE_NEW[selected_group]["산업분야"].keys()),
-        default=["OEM_Keywords","Supplier_Keywords"],
+        default=["OEM_Keywords","Supplier_Keywords","Industry_Powertrain","Battery","Policy_Regulation","Events_Conferences"],
         help="분석할 산업 분야를 선택하세요. 각 분야별로 세부 키워드를 선택할 수 있습니다."
     )
     
