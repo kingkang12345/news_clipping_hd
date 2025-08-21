@@ -772,6 +772,28 @@ COMPANY_ADDITIONAL_EXCLUSION_CRITERIA = {
 
 # 2단계: 그룹핑 추가 기준
 COMPANY_ADDITIONAL_DUPLICATE_HANDLING = {
+    "산업분야": """
+
+산업분야 특화 그룹핑 기준 (추가):
+When duplicate news exists, use the following priority order for global powertrain news:
+
+1. Media Source Priority (highest to lowest):
+   - Tier 1 (Industry Specialized): greencarcongress.com, electrive.com, autonews.com, insideevs.com, automotiveinteriorsworld.com, just-auto.com, automotivepowertraintechnologyinternational.com
+   - Tier 2 (Technical/Business): xtech.nikkei.com, nikkei.com, motor-fan.jp, monoist.itmedia.co.jp, newswitch.jp, merkmal-biz.jp, netdenjd.com
+   - Tier 3 (Regional Automotive): autocar.jp, fourin.com, fourin.jp, carnewschina.com, cnevpost.com, autonews.gasgoo.com, moparinsiders.com
+   - Tier 4 (General Tech/Business): electrek.co, techcrunch.com, reuters.com, toyokeizai.net, 36kr.jp, evxl.co
+   - Tier 5 (General News): yomiuri.co.jp, acea.auto
+
+2. Content Depth (within same tier):
+   - More technical detail and strategic context
+   - Expert quotes or industry analysis
+   - Data/numbers supporting the story
+   - Broader implications for powertrain industry
+
+3. Publication Time:
+   - Most recent article preferred
+   - If same day, prefer more comprehensive coverage
+"""
 }
 
 # 3단계: 선택 기준 추가
