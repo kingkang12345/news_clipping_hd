@@ -74,10 +74,10 @@ def call_llm(state: AgentState, system_prompt: str, user_prompt: str, stage: int
     try:
         # LLM 초기화
         llm = ChatOpenAI(
-            openai_api_key=os.getenv("OPENAI_API_KEY"), #pwc
-            openai_api_base=os.getenv("OPENAI_BASE_URL"), #pwc
-            model_name = "openai.gpt-4.1-2025-04-14",
-            #model_name=state.get("model", "gpt-4.1"),
+            #openai_api_key=os.getenv("OPENAI_API_KEY"), #pwc
+            #openai_api_base=os.getenv("OPENAI_BASE_URL"), #pwc
+            #model_name = "openai.gpt-4.1-2025-04-14",
+            model_name=state.get("model", "gpt-5"),
             temperature=0.1,
             #max_tokens=2000
         )
@@ -574,8 +574,8 @@ JSON 형식으로 응답해주세요:
         # OpenAI 클라이언트 초기화 (수정된 방식)
         try:
             llm = ChatOpenAI(
-                model="openai.gpt-4.1-2025-04-14",  # pwc
-                #model="gpt-4.1",
+                #model="openai.gpt-4.1-2025-04-14",  #pwc
+                model="gpt-4.1",
                 temperature=0.3,
                 request_timeout=30,
                 openai_api_key=os.getenv("OPENAI_API_KEY"),
@@ -711,7 +711,7 @@ def filter_excluded_news(state: AgentState) -> AgentState:
     """뉴스를 제외/보류/유지로 분류하는 함수"""
     try:
         # 시스템 프롬프트 설정
-        system_prompt = state.get("system_prompt_1", "당신은 회계법인의 뉴스 분석 전문가입니다. 뉴스의 중요성을 판단하여 제외/보류/유지로 분류하는 작업을 수행합니다. 특히 회계법인의 관점에서 중요하지 않은 뉴스(예: 단순 홍보, CSR 활동, 이벤트 등)를 식별하고, 회계 감리나 재무 관련 이슈는 반드시 유지하도록 합니다.")
+        system_prompt = state.get("system_prompt_1", "당신은 뉴스 분석 전문가입니다. 뉴스의 중요성을 판단하여 제외/보류/유지로 분류하는 작업을 수행합니다. 특히 회계법인의 관점에서 중요하지 않은 뉴스(예: 단순 홍보, CSR 활동, 이벤트 등)를 식별하고, 회계 감리나 재무 관련 이슈는 반드시 유지하도록 합니다.")
         
         # 뉴스 데이터 준비
         news_data = state.get("news_data", [])
@@ -727,7 +727,7 @@ def filter_excluded_news(state: AgentState) -> AgentState:
             news_list += f"{original_index}. {news['content']} ({press})\n"
             
         # 제외 판단 프롬프트
-        exclusion_prompt = f"""아래 뉴스 목록을 회계법인의 관점에서 분석하여 제외/보류/유지로 분류해주세요.
+        exclusion_prompt = f"""아래 뉴스 목록을 분석하여 제외/보류/유지로 분류해주세요.
 각 뉴스의 번호는 고유 식별자이므로 변경하지 말고 그대로 응답에 사용해주세요.
 
 [뉴스 목록]

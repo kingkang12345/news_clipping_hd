@@ -156,6 +156,11 @@ ANALYSIS_SCOPE_CRITERIA = {
     "산업분야": {
         "selection_criteria": """
 Include only reliable sources (major media and industry-specialized media).
+Tier 1 (Industry Specialized): Green Car Congress, Automotive Powertrain Technology International, Automotive News, Inside EVs, Electrive, Just Auto, Automotive Interiors World
+Tier 2 (Technical/Business): Nikkei, Motor Fan, Monoist, Newswitch, Merkmal Biz, Netdenjd, Reuters
+Tier 3 (Regional Automotive): Autocar, Fourin, Car News China, CNEVPost, AutoNews Gasgoo, Mopar Insiders
+Tier 4 (General Tech/Business): Electrek, TechCrunch, Toyokeizai, 36kr.jp, EVXL
+Tier 5 (General News): Yomiuri, ACEA Auto, other general outlets
 
 Scope: Powertrain technologies (conventional and electrified).
 - Conventional P/T: engine, transmission, ICE efficiency, emission regulation
@@ -319,7 +324,7 @@ ANALYSIS_SCOPE_SYSTEM_PROMPTS = {
     },
     "산업분야": {
   "system_prompt_1": """You are an industry analysis expert. 
-Classify each news article into [제외 / 유지 / 보류류].
+Classify each news article into [제외 / 보류 / 유지].
 
 Scope: Powertrain (P/T) related technologies only. 
 - Include both conventional powertrain (engine, transmission, ICE efficiency, emission standards) 
@@ -388,25 +393,28 @@ Prioritize:
 EXCLUSION_CRITERIA = """
    """
 
-DUPLICATE_HANDLING = """중복 뉴스가 존재할 경우 다음 우선순위로 1개만 선택하십시오:
-1. 언론사 우선순위 (높은 순위부터)
-   - 1순위: 경제 전문지 (한국경제, 매일경제, 조선비즈, 파이낸셜뉴스)
-   - 2순위: 종합 일간지 (조선일보, 중앙일보, 동아일보)
-   - 3순위: 통신사 (연합뉴스, 뉴스핌, 뉴시스)
-   - 4순위: 기타 언론사
+DUPLICATE_HANDLING = """When duplicate news exists, select only 1 article using the following priority order:
 
-2. 발행 시간 (같은 언론사 내에서)
-   - 최신 기사 우선
-   - 정확한 시간 정보가 없는 경우, 날짜만 비교
+1. Media Source Priority (highest to lowest):
+   - Tier 1 (Industry Specialized): Green Car Congress, Automotive Powertrain Technology International, Automotive News, Inside EVs, Electrive, Just Auto, Automotive Interiors World
+   - Tier 2 (Technical/Business): Nikkei (xtech.nikkei.com, nikkei.com), Motor Fan, Monoist (itmedia.co.jp), Newswitch, Merkmal Biz, Netdenjd, Reuters
+   - Tier 3 (Regional Automotive): Autocar (autocar.jp), Fourin (fourin.com, fourin.jp), Car News China, CNEVPost, AutoNews Gasgoo, Mopar Insiders
+   - Tier 4 (General Tech/Business): Electrek, TechCrunch, Toyokeizai, 36kr.jp, EVXL
+   - Tier 5 (General News): Yomiuri, ACEA Auto, other general outlets
 
-3. 기사 내용의 완성도
-   - 더 자세한 정보를 포함한 기사 우선
-   - 주요 인용문이나 전문가 의견이 포함된 기사 우선
-   - 단순 보도보다 분석적 내용이 포함된 기사 우선
+2. Content Depth (within same tier):
+   - More technical detail and strategic context
+   - Expert quotes or industry analysis
+   - Data/numbers supporting the story
+   - Broader implications for automotive/powertrain industry
 
-4. 제목의 명확성
-   - 더 구체적이고 명확한 제목의 기사 우선
-   - 핵심 키워드가 포함된 제목 우선"""
+3. Publication Time:
+   - Most recent article preferred
+   - If same day, prefer more comprehensive coverage
+
+4. Title Clarity:
+   - More specific and clear headlines
+   - Contains core automotive/powertrain/electrification keywords"""
 
 SELECTION_CRITERIA = """다음 기준에 해당하는 뉴스가 있다면 반드시 선택해야 합니다:
 

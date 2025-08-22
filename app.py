@@ -1762,7 +1762,7 @@ if st.button("뉴스 분석 시작", type="primary"):
     
     else:
         st.info("선정된 기사가 없어 HTML 이메일을 생성할 수 없습니다.")
-
+    
 
 
 
