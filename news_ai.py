@@ -74,7 +74,7 @@ def call_llm(state: AgentState, system_prompt: str, user_prompt: str, stage: int
     try:
         # LLM 초기화
         llm = ChatOpenAI(
-            #openai_api_key=os.getenv("OPENAI_API_KEY"), #pwc
+           # openai_api_key=os.getenv("OPENAI_API_KEY"), #pwc
             #openai_api_base=os.getenv("OPENAI_BASE_URL"), #pwc
             #model_name = "openai.gpt-4.1-2025-04-14",
             model_name=state.get("model", "gpt-5"),
@@ -981,7 +981,7 @@ def evaluate_importance(state: AgentState) -> AgentState:
         # 중요도 평가 프롬프트
         system_prompt = state.get("system_prompt_3", "당신은 회계법인의 전문 애널리스트입니다. 뉴스의 중요도를 평가하고 최종 선정하는 작업을 수행합니다. 특히 회계 감리, 재무제표, 경영권 변동, 주요 계약, 법적 분쟁 등 회계법인의 관점에서 중요한 이슈를 식별하고, 그 중요도를 '상' 또는 '중'으로 평가합니다. 또한 각 뉴스의 핵심 키워드와 관련 계열사를 식별하여 보고합니다.")
         
-        evaluation_prompt = f"""아래 기사들에 대해 회계법인의 시각으로 중요도를 평가하고, 모든 뉴스에 대해 평가 결과를 알려주세요.
+        evaluation_prompt = f"""아래 기사들에 대해 중요도를 평가하고, 모든 뉴스에 대해 평가 결과를 알려주세요.
 중요도 '상' 또는 '중'인 뉴스는 최종 선정하고, '하'인 뉴스는 선정하지 않습니다.
 
 [뉴스 목록]
