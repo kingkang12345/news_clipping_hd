@@ -528,7 +528,7 @@ def _generate_article_summary(content: str, title: str, system_prompt: str) -> s
     try:
         # 요약 프롬프트 먼저 정의
         summary_prompt = f"""
-다음 뉴스 기사를 현대자동차 남양연구소 PT/전동화 개발 인력 관점에서 요약해주세요.
+다음 뉴스 기사를 PT/전동화 관점에서 요약해주세요.
 
 [기사 제목]
 {title}
@@ -538,15 +538,18 @@ def _generate_article_summary(content: str, title: str, system_prompt: str) -> s
 
 [요약 요구사항]
 1. 제목을 한국어로 번역
-2. 핵심 내용을 1-2문장으로 요약
-3. 세부 내용을 3-5개 항목으로 나눠서 정리
-4. 기술적 세부사항이 있다면 구체적으로 언급
+2. 핵심 내용을 1문장으로 요약
+3. 세부 내용을 3-4개 항목으로 나눠서 정리
+4. 차량 명은 영문으로 <> 안에 넣기
+5. PT/전동화 관점에서 뉴스 기사 요약
+6. 출력 HP 또는 PS로 전환, 전기차는 kW로, 엔진토크는 kgmf, 전기차는 Nm
+7. 전환 후 수치에 대해서 저는 소수점 두째 자리에서 반올림
 
 [응답 형식]
 JSON 형식으로 응답해주세요:
 {{
   "title_korean": "제목 한국어 번역",
-  "summary_oneline": "핵심 내용 1-2문장 요약",
+  "summary_oneline": "핵심 내용 1문장 요약",
   "details": [
     "세부 내용 1",
     "세부 내용 2", 

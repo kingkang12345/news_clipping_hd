@@ -31,29 +31,38 @@ COMPANY_STRUCTURE_NEW = {
             "중국브랜드": ["BYD", "니오", "샤오펑", "리오토", "지리", "체리", "창안", "SAIC", "FAW", "동펑", "GAC", "창성", "웨이마", "이드"]
         },
         "산업분야": {
-            "OEM_Keywords": [
-                "Toyota engine", "Toyota transmission", "Toyota hybrid", "Toyota electrification", "Toyota powertrain", "Toyota EV", "Toyota fuel cell",
-                "Ford engine", "Ford transmission", "Ford hybrid", "Ford electrification", "Ford powertrain", "Ford EV", "Ford fuel cell",
-                "Hyundai engine", "Hyundai transmission", "Hyundai hybrid", "Hyundai electrification", "Hyundai powertrain", "Hyundai EV", "Hyundai fuel cell",
-                "Volkswagen engine", "Volkswagen transmission", "Volkswagen hybrid", "Volkswagen electrification", "Volkswagen powertrain", "Volkswagen EV", "Volkswagen fuel cell"
+            "배터리_Cell_Module_System": [
+                "Battery Cells", "Battery Module", "Battery System", "Battery System Thermal Management", "Solid-State Batteries"
             ],
-            "Supplier_Keywords": [
-                "Bosch electrification", "Bosch hybrid", "Bosch powertrain", "Bosch EV", "Bosch fuel cell",
-                "Continental electrification", "Continental hybrid", "Continental powertrain", "Continental EV", "Continental fuel cell",
-                "Denso electrification", "Denso hybrid", "Denso powertrain", "Denso EV", "Denso fuel cell",
-                "Magna electrification", "Magna hybrid", "Magna powertrain", "Magna EV", "Magna fuel cell"
+            "배터리_Charging_Simulation": [
+                "Battery fast charging performance", "Battery slow charging performance", "OBC Topology", "Battery modeling", "Battery Simulation"
             ],
-            "Industry_Powertrain": [
-                "powertrain", "engine", "transmission", "electrification", "hybrid", "EV motor", "fuel cell", "power module"
+            "전동화_Motor_Drive": [
+                "Axial Motor", "In-Wheel Motor", "Motorized Drive Motor", "Electric transmission", "High voltage electric super charger"
             ],
-            "Battery": [
-                "solid-state battery", "gigafactory", "battery pack restructuring"
+            "전동화_Control_Electronics": [
+                "48 Volt Electrification", "48V System", "48V/12V Integrated Battery", "Battery Electric Vehicle Control", "Electrification Modeling", "Electrified Power Module", "Electrified Torque Vectoring", "Electrified Vehicle Control", "Electrified Vehicles Power Electronics", "Electrified Thermal Management System"
             ],
-            "Policy_Regulation": [
-                "policy regulation automotive", "ZEV mandate", "CAFE standard", "Euro 7 regulation", "China NEV policy"
+            "내연기관_연소": [
+                "COMBUSTION CHAMBER", "Combustion Management", "COMPRESSION RATIO", "Engine Downsizing", "Engine Electrification", "FAST BURN", "high ignition energy", "HOMOGENEOUS CHARGE", "ignition pressure sensor", "IGNITION SYSTEM", "INTAKE CHARGE TEMPERATURE", "INTAKE PORT DESIGN", "KNOCK", "LEANBURN AND LNT", "PISTON BOWL", "PRE CHAMBER Ignition (ACTIVE)", "PRE CHAMBER ignition (PASSIVE)", "Pumping Improvements", "SPARK CHANNEL", "SPARK IGNITION", "STRATIFIED CHARGE", "TUMBLE", "VARIABLE VALVE TRAIN", "Thermal Efficiency", "friction"
             ],
-            "Events_Conferences": [
-                "SAE conference", "Battery Show", "CES automotive", "IAA mobility", "Auto Shanghai"
+            "연료_대체연료": [
+                "e-Fuel", "Synthetic Fuel", "Hydrogen Combustion", "Hydrogen ICE", "Water Electrolysis"
+            ],
+            "배출가스_후처리": [
+                "Carbon Capture", "Catalyst", "Catalyst for Eco-friendly Vehicles", "Catalyst Modeling / Post-Processing", "Diesel Catalyst", "Emission Reduction Device", "Emission Reduction System", "Emissions", "Gasoline catalyst", "Hydrogen SCR", "Particulate Filter", "Pre-treatment/post-processing performance development (including EMS mapping and control)", "RDE", "WLTC", "CLTC", "EGR"
+            ],
+            "구동계_변속기": [
+                "4WD system", "Actuator", "AMT", "DCT", "Dedicated Hybrid Transmission", "Hardening automatic transmission", "Hydraulic System", "Manual transmission", "Multi-Speed Transmission", "Reducer", "Shift Sensitivity Design / Test / Analysis"
+            ],
+            "하이브리드_열관리": [
+                "1-Mot HEV", "P/Split HEV", "Parallel HEV", "Series HEV", "RANGE EXTEND", "CHARGED AIR WATER COOLING", "Improved cooling", "Thermal Management", "Thermal Management for Electrified Vehicles"
+            ],
+            "시뮬레이션_제어": [
+                "Virtual Environment Implementation", "Optimize efficiency", "Parking", "NVH", "OBD", "package"
+            ],
+            "기타": [
+                "E TURBO", "ELECTRIC BOOST", "muffler", "Torque", "Membrane-pole junctions", "Fuel economy"
             ]
         }
     }
