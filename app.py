@@ -26,6 +26,7 @@ from news_ai import (
     group_and_select_news,
     evaluate_importance,
     summarize_selected_articles,
+    _generate_article_summary,
 )
 
 # Import centralized configuration
@@ -96,7 +97,7 @@ def _clean_html_for_display(text: str) -> str:
     return text.strip()
 
 def _format_ai_summary_for_box(clean_summary, extraction_success):
-    """AI 요약을 파란색 박스 안에 포함되도록 HTML 포맷팅"""
+    """AI 요약을 파란색 박스 안에 포함되도록 HTML 포맷팅 (JSON 형식 지원)"""
     if not clean_summary:
         return ""
     
@@ -107,18 +108,16 @@ def _format_ai_summary_for_box(clean_summary, extraction_success):
             </div>
         """
     
-    # 핵심요약, 기술적세부사항, 시사점을 구분하여 줄바꿈 처리
-    formatted_summary = clean_summary.replace('• 핵심 요약:', '<br><br><strong>• 핵심 요약:</strong>')
-    formatted_summary = formatted_summary.replace('• 기술적 세부사항:', '<br><br><strong>• 기술적 세부사항:</strong>')
-    formatted_summary = formatted_summary.replace('• 시사점:', '<br><br><strong>• 시사점:</strong>')
-    
-    # 첫 번째 항목의 앞쪽 <br> 제거
-    if formatted_summary.startswith('<br><br>'):
-        formatted_summary = formatted_summary[8:]
+    # JSON 형식의 요약이면 그대로 사용 (이미 _format_json_summary에서 HTML로 변환됨)
+    # 기존 텍스트 형식이면 기존 방식 사용
+    if clean_summary.strip().startswith('<div'):
+        # 이미 HTML로 포맷된 JSON 요약
+        return f"""
+            {clean_summary}
+        """
     
     return f"""
-        <div class="selection-reason">
-            🤖 AI 원문 요약: <br>{formatted_summary}
+            {clean_summary}
     """
 
 def format_date(date_str):
@@ -728,8 +727,8 @@ selected_companies = selected_keywords[:10]  # 최대 10개 제한
 # 키워드 맵 업데이트 - 이미 위에서 처리됨 (산업분야는 사용자 선택으로, 일반 키워드는 자기 자신)
 for keyword in selected_companies:
     if 'company_keyword_map' not in st.session_state:
-        st.session_state.company_keyword_map = {}
-    
+            st.session_state.company_keyword_map = {}
+        
     # 산업분야가 아닌 일반 키워드는 자기 자신만 포함
     if keyword not in COMPANY_STRUCTURE_NEW[selected_group]["산업분야"]:
         st.session_state.company_keyword_map[keyword] = [keyword]
@@ -1577,77 +1576,194 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 키워드 구분선 추가
             st.markdown("---")
 
-    # 모든 키워드 분석이 끝난 후 이메일 미리보기 섹션 추가
-    st.markdown("<div class='subtitle'>📧 이메일 미리보기</div>", unsafe_allow_html=True)
+    # 모든 키워드 분석이 끝난 후 HTML 이메일 생성
+    st.markdown("---")
+    st.markdown("### 📧 이메일용 HTML 요약")
+    st.markdown("아래 HTML을 복사하여 이메일로 전송하실 수 있습니다.")
     
-    # HTML 버전 생성
-    html_email_content = "<div style='font-family: Arial, sans-serif; max-width: 800px; font-size: 14px; line-height: 1.5;'>"
+    # 모든 키워드의 최종 선정 기사들을 하나의 리스트로 통합
+    all_final_news = []
+    for company, results in all_results.items():
+        for news in results:
+            news['source_keyword'] = company
+            all_final_news.append(news)
     
-    html_email_content += "<div style='margin-top: 20px; font-size: 14px;'>Daily eP Trend<br></div>"
-    plain_email_content = "\nDaily eP Trend\n"
-    
-    html_email_content += "<div style='font-size: 14px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #000;'>25-08-18 전동화 일일동향</div>"
-    plain_email_content += "25-08-18 전동화 일일동향\n"
-    
-    # 일반 텍스트 버전 생성 (복사용)
-    plain_email_content += "\n\n"
-    
-    def clean_title(title):
-        """Clean title by removing the press name pattern at the end"""
-        # Remove the press pattern (e.g., '제목 - 조선일보', '제목-조선일보', '제목 - Chosun Biz')
-        title = re.sub(r"\s*-\s*[가-힣A-Za-z0-9\s]+$", "", title).strip()
-        return title
-
-    for i, company in enumerate(final_selected_companies, 1):
-        # HTML 버전에서 키워드를 파란색으로 표시
-        html_email_content += f"<div style='font-size: 14px; font-weight: bold; margin-top: 15px; margin-bottom: 10px; color: #0000FF;'>{i}. {company}</div>"
-        html_email_content += "<ul style='list-style-type: none; padding-left: 20px; margin: 0;'>"
-        
-        # 텍스트 버전에서도 키워드 구분을 위해 줄바꿈 추가
-        plain_email_content += f"{i}. {company}\n"
-        
-        # 해당 키워드의 뉴스 가져오기
-        news_list = all_results.get(company, [])
-        
-        if not news_list:
-            # 최종 선정 뉴스가 0건인 경우 안내 문구 추가
-            html_email_content += "<li style='margin-bottom: 8px; font-size: 14px; color: #888;'>AI 분석결과 금일자로 회계법인 관점에서 특별히 주목할 만한 기사가 없습니다.</li>"
-            plain_email_content += "  - AI 분석결과 금일자로 회계법인 관점에서 특별히 주목할 만한 기사가 없습니다.\n"
-        else:
-            for news in news_list:
-                # 날짜 형식 변환
-                date_str = news.get('date', '')
-                try:
-                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                    formatted_date = date_obj.strftime('%m/%d')
-                except Exception as e:
-                    try:
-                        date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
-                        formatted_date = date_obj.strftime('%m/%d')
-                    except Exception as e:
-                        formatted_date = date_str if date_str else '날짜 정보 없음'
-                
+    if all_final_news:
+        with st.spinner("선정된 기사들의 상세 요약을 생성하는 중..."):
+            # 웹 스크래퍼 초기화
+            from web_scraper import HybridNewsWebScraper
+            scraper = HybridNewsWebScraper(
+                openai_api_key=os.getenv('OPENAI_API_KEY'),
+                enable_ai_fallback=True
+            )
+            
+            # HTML 이메일 내용 생성
+            html_content = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .header { background-color: #d04a02; color: white; padding: 20px; text-align: center; }
+        .article { border: 1px solid #ddd; margin: 20px 0; padding: 20px; border-radius: 8px; }
+        .article-title { font-size: 1.3em; font-weight: bold; color: #d04a02; margin-bottom: 10px; }
+        .article-meta { color: #666; font-size: 0.9em; margin-bottom: 15px; }
+        .korean-title { font-size: 1.2em; font-weight: bold; color: #333; margin: 15px 0 10px 0; }
+        .oneline-summary { background-color: #f0f8ff; padding: 12px; border-radius: 6px; margin: 15px 0; border-left: 4px solid #0077b6; }
+        .details { margin: 15px 0; }
+        .details li { margin-bottom: 8px; line-height: 1.4; }
+        .original-url { margin-top: 15px; }
+        .original-url a { color: #0077b6; text-decoration: none; }
+        .original-url a:hover { text-decoration: underline; }
+        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; color: #666; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>PwC 뉴스 분석 보고서</h1>
+        <p>생성일: """ + datetime.now().strftime("%Y년 %m월 %d일 %H:%M") + """</p>
+    </div>
+"""
+            
+            # 각 기사별로 상세 정보 추가
+            for i, news in enumerate(all_final_news, 1):
                 url = news.get('url', '')
-                title = news.get('title', '')
-                # 이메일 미리보기에서는 언론사 패턴 제거
-                title = clean_title(title)
-                # HTML 버전 - 링크를 [파일 링크]로 표시하고 글자 크기 통일, 본문 bold 처리
-                html_email_content += f"<li style='margin-bottom: 8px; font-size: 14px;'><span style='font-weight: bold;'>- {title} ({formatted_date})</span> <a href='{url}' style='color: #1a0dab; text-decoration: none;'>[기사 링크]</a></li>"
+                title = news.get('title', '제목 없음')
+                press = news.get('press', '알 수 없음')
+                date_str = news.get('date', '')
+                source_keyword = news.get('source_keyword', '')
+                reason = news.get('reason', '')
                 
-                # 텍스트 버전 - 링크를 [파일 링크]로 표시하고 실제 URL은 그 다음 줄에
-                plain_email_content += f"  - {title} ({formatted_date}) [기사 링크]\n    {url}\n"
+                # 날짜 형식 변환
+                try:
+                    if 'GMT' in date_str:
+                        date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                        formatted_date = date_obj.strftime('%Y-%m-%d')
+                    else:
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                        formatted_date = date_str
+                except:
+                    formatted_date = date_str if date_str else '날짜 정보 없음'
+                
+                # Google News URL 디코딩
+                original_url = url
+                if 'news.google.com' in url:
+                    decoded_url = scraper._resolve_google_news_url_simple(url, timeout=10)
+                    if decoded_url:
+                        original_url = decoded_url
+                
+                # 기사 원문 요약 처리 (옵션이 활성화된 경우에만)
+                summary_html = ""
+                
+                if enable_article_summary and news.get('ai_summary'):
+                    # 이미 생성된 AI 요약 사용
+                    summary = news.get('ai_summary', '')
+                    
+                    # JSON 파싱하여 각 요소 추출
+                    try:
+                        import json
+                        import re
+                        
+                        # JSON 응답에서 코드 블록 제거
+                        json_text = summary.strip()
+                        if "<div" in json_text:  # 이미 HTML로 포맷된 경우
+                            summary_html = json_text
+                        else:
+                            # JSON 파싱 시도
+                            if json_text.startswith("```json"):
+                                json_text = json_text[7:]
+                            if json_text.startswith("```"):
+                                json_text = "\n".join(json_text.split("\n")[1:])
+                            if json_text.endswith("```"):
+                                json_text = "\n".join(json_text.split("\n")[:-1])
+                            
+                            json_text = json_text.strip()
+                            summary_data = json.loads(json_text)
+                            
+                            korean_title = summary_data.get('title_korean', '번역 제목 없음')
+                            oneline_summary = summary_data.get('summary_oneline', '요약 없음')
+                            details = summary_data.get('details', [])
+                            
+                            # 세부 내용 HTML 생성
+                            details_html = ""
+                            if details:
+                                details_html = "<ul class='details'>"
+                                for detail in details:
+                                    details_html += f"<li>{detail}</li>"
+                                details_html += "</ul>"
+                            
+                            summary_html = f"""
+                            <div class="korean-title">{korean_title}</div>
+                            <div class="oneline-summary"><strong>핵심 요약:</strong> {oneline_summary}</div>
+                            {details_html}
+                            """
+                    except:
+                        # JSON 파싱 실패 시 원본 HTML 사용
+                        if summary:
+                            summary_html = summary
+                        else:
+                            summary_html = "<div>요약 파싱 실패</div>"
+                
+                elif enable_article_summary:
+                    # 원문 요약 옵션이 켜져있지만 요약이 없는 경우
+                    summary_html = "<div style='color: #666; font-style: italic;'>원문 요약을 생성하지 못했습니다.</div>"
+                else:
+                    # 원문 요약 옵션이 꺼져있는 경우
+                    summary_html = "<div style='color: #666; font-style: italic;'>원문 요약이 비활성화되었습니다.</div>"
+                
+                # HTML에 기사 정보 추가
+                html_content += f"""
+    <div class="article">
+        <div class="article-title">{i}. {title}</div>
+        <div class="article-meta">
+            <strong>날짜:</strong> {formatted_date} | 
+            <strong>언론사:</strong> {press} | 
+            <strong>키워드:</strong> {source_keyword}
+        </div>
+        <div class="article-meta">
+            <strong>선정 이유:</strong> {reason}
+        </div>
         
-        html_email_content += "</ul>"
-        plain_email_content += "\n"
+        {summary_html}
+        
+        <div class="original-url">
+            <strong>원문 링크:</strong> <a href="{original_url}" target="_blank">{original_url}</a>
+        </div>
+    </div>
+"""
+                
+                # 진행상황 표시
+                st.write(f"기사 {i}/{len(all_final_news)} 처리 완료: {title[:50]}...")
+            
+            # HTML 마무리
+            html_content += """
+    <div class="footer">
+        <p>© 2024 PwC 뉴스 분석기 | 회계법인 관점의 뉴스 분석 도구</p>
+    </div>
+</body>
+</html>
+"""
+            
+            # HTML 내용 표시
+            st.markdown("#### 📋 생성된 HTML 이메일")
+            st.text_area(
+                "HTML 코드 (복사하여 사용하세요)",
+                value=html_content,
+                height=400,
+                help="이 HTML 코드를 복사하여 이메일 본문에 붙여넣으세요."
+            )
+            
+            # HTML 미리보기
+            st.markdown("#### 👀 이메일 미리보기")
+            st.components.v1.html(html_content, height=600, scrolling=True)
+            
+            st.success(f"🎉 총 {len(all_final_news)}개 기사의 HTML 이메일이 생성되었습니다!")
     
-    # 서명 추가
-    html_email_content += "<div style='margin-top: 20px; font-size: 14px;'><br>감사합니다.<br>Daily eP Trend</div>"
-    plain_email_content += "\n감사합니다.\nDaily eP Trend"
-    
-    html_email_content += "</div>"
-    
-    # 이메일 미리보기 표시
-    st.markdown(f"<div class='email-preview'>{html_email_content}</div>", unsafe_allow_html=True)
+    else:
+        st.info("선정된 기사가 없어 HTML 이메일을 생성할 수 없습니다.")
+
+
 
 
 

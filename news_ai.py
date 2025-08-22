@@ -74,10 +74,10 @@ def call_llm(state: AgentState, system_prompt: str, user_prompt: str, stage: int
     try:
         # LLM 초기화
         llm = ChatOpenAI(
-            #openai_api_key=os.getenv("OPENAI_API_KEY"), #pwc
-            #openai_api_base=os.getenv("OPENAI_BASE_URL"), #pwc
-            #model_name = "openai.gpt-4.1-2025-04-14",
-            model_name=state.get("model", "gpt-4.1"),
+            openai_api_key=os.getenv("OPENAI_API_KEY"), #pwc
+            openai_api_base=os.getenv("OPENAI_BASE_URL"), #pwc
+            model_name = "openai.gpt-4.1-2025-04-14",
+            #model_name=state.get("model", "gpt-4.1"),
             temperature=0.1,
             #max_tokens=2000
         )
@@ -200,7 +200,7 @@ def collect_news(state: AgentState) -> AgentState:
         def get_target_regions(keyword):
             """키워드에 따른 대상 지역 반환"""
             # 모든 키워드에 대해 미국에서만 검색
-            return ["미국"]
+            return ["미국","일본"]
         
         # 각 키워드별로 뉴스 검색 및 결과 병합 (언어별 지역 최적화)
         for kw in keywords_to_search:
@@ -209,15 +209,19 @@ def collect_news(state: AgentState) -> AgentState:
             
             print(f"키워드 '{kw}' ({keyword_type}) 검색 중... 대상 지역: {', '.join(target_regions)}")
             
-            # 모든 키워드에 대해 미국에서만 검색
-            news_results = news.search_by_keyword(kw, k=max_results, region="미국")
+            # 각 대상 지역에서 뉴스 검색
+            keyword_results = []
+            for region in target_regions:
+                region_results = news.search_by_keyword(kw, k=max_results//len(target_regions), region=region)
+                keyword_results.extend(region_results)
+                print(f"  - {region}에서 {len(region_results)}개 뉴스 수집")
             
-            all_news_data.extend(news_results)
-            print(f"키워드 '{kw}' 검색 결과: {len(news_results)}개")
+            all_news_data.extend(keyword_results)
+            print(f"키워드 '{kw}' 총 검색 결과: {len(keyword_results)}개")
             
             # 지역별 분포 출력
             region_count = {}
-            for item in news_results:
+            for item in keyword_results:
                 region = item.get("region", "알 수 없음")
                 region_count[region] = region_count.get(region, 0) + 1
             
@@ -533,26 +537,46 @@ def _generate_article_summary(content: str, title: str, system_prompt: str) -> s
 {content}
 
 [요약 요구사항]
-1. 핵심 내용을 3-5문장으로 요약
-2. 기술적 세부사항이 있다면 구체적으로 언급
-3. 현대차그룹에 미치는 영향이나 시사점 포함
-4. 지역별 동향이라면 해당 지역의 특성 언급
+1. 제목을 한국어로 번역
+2. 핵심 내용을 1-2문장으로 요약
+3. 세부 내용을 3-5개 항목으로 나눠서 정리
+4. 기술적 세부사항이 있다면 구체적으로 언급
+5. 현대차그룹에 미치는 영향이나 시사점 포함
 
 [응답 형식]
-• 핵심 요약: (3-5문장으로 핵심 내용 요약)
+JSON 형식으로 응답해주세요:
+{{
+  "title_korean": "제목 한국어 번역",
+  "summary_oneline": "핵심 내용 1-2문장 요약",
+  "details": [
+    "세부 내용 1",
+    "세부 내용 2", 
+    "세부 내용 3"
+  ]
+}}
 
-• 기술적 세부사항: (기술 관련 구체적 내용이 있다면)
+[예시]
+{{
+  "title_korean": "VW, BEV (ID. 시리즈) 가격 동결",
+  "summary_oneline": "폭스바겐이 '26년식부터 ID. 시리즈, T-Roc 등 BEV는 연례 가격 인상에서 제외, ICE는 평균 1.5% 인상 예정",
+  "details": [
+    "작년 '25년식 출시 모델에 대한 가격 연례 인상 시 ICE가격 2.1%에서 3.2%로 인상 및 BEV 가격은 동결한 것과 유사 행보",
+    "올해 독일 내 VW 판매 차종 5대 중 1대는 BEV 모델인 점 등 시장 침투율 고려하여 BEV 가격 경쟁력 유지 및 소비자 부담 절감 목표",
+    "다만 동결한 BEV 가격의 경우 정가에만 해당하며 외관 컬러, 스포츠·디자인 패키지 등 개별 추가 옵션의 가격은 상향 예정",
+    "첫 차량 LS6에 8월 15일 사전 판매 시작, 플래그십 SUV LS9는 2025년 4분기 공식 출시 예정"
+  ]
+}}
 
-• 시사점: (현대차그룹 관점에서의 의미)
-
-[중요] HTML 태그(<div>, <br>, <span> 등)는 절대 사용하지 마세요. 일반 텍스트로만 응답하세요.
+[중요] 반드시 완전한 JSON 형식으로만 응답하세요. 다른 텍스트나 설명은 포함하지 말 것.
+[중요] 모든 문장은 한국어로 작성할 것.  
+[중요] 문체는 자연스러운 보고서 요약체(예: ~함, ~임, ~음)로 작성할 것.  
 """
         
         # OpenAI 클라이언트 초기화 (수정된 방식)
         try:
             llm = ChatOpenAI(
-                #model="openai.gpt-4.1-2025-04-14",  # pwc
-                model="gpt-4.1",
+                model="openai.gpt-4.1-2025-04-14",  # pwc
+                #model="gpt-4.1",
                 temperature=0.3,
                 request_timeout=30,
                 openai_api_key=os.getenv("OPENAI_API_KEY"),
@@ -566,9 +590,9 @@ def _generate_article_summary(content: str, title: str, system_prompt: str) -> s
             ]
             
             response = llm.invoke(messages)
-            # HTML 태그 제거 후처리
+            # JSON 응답 파싱 및 포맷팅
             summary_content = response.content
-            return _clean_html_tags(summary_content)
+            return _format_json_summary(summary_content)
             
         except Exception as e:
             print(f"ChatOpenAI 초기화 또는 호출 실패: {e}")
@@ -590,9 +614,9 @@ def _generate_article_summary(content: str, title: str, system_prompt: str) -> s
                     temperature=0.3,
                     max_tokens=1000
                 )
-                # HTML 태그 제거 후처리
+                # JSON 응답 파싱 및 포맷팅
                 summary_content = response.choices[0].message.content
-                return _clean_html_tags(summary_content)
+                return _format_json_summary(summary_content)
                 
             except Exception as fallback_error:
                 print(f"OpenAI 직접 호출도 실패: {fallback_error}")
@@ -630,6 +654,58 @@ def _clean_html_tags(text: str) -> str:
     text = re.sub(r'\n\s*\n', '\n\n', text)
     
     return text.strip()
+
+def _format_json_summary(json_response: str) -> str:
+    """요약 JSON 응답을 HTML 형식으로 변환"""
+    import json
+    import re
+    
+    try:
+        # JSON 응답에서 코드 블록 제거
+        json_text = json_response.strip()
+        if json_text.startswith("```json"):
+            json_text = json_text[7:]
+        if json_text.startswith("```"):
+            json_text = "\n".join(json_text.split("\n")[1:])
+        if json_text.endswith("```"):
+            json_text = "\n".join(json_text.split("\n")[:-1])
+        
+        json_text = json_text.strip()
+        
+        # JSON 파싱
+        summary_data = json.loads(json_text)
+        
+        # HTML 형식으로 변환
+        title_korean = summary_data.get('title_korean', '제목 없음')
+        summary_oneline = summary_data.get('summary_oneline', '요약 없음')
+        details = summary_data.get('details', [])
+        
+        # HTML 포맷팅
+        html_content = f"""
+<div style="margin-bottom: 15px;">
+    <h4 style="color: #333; margin-bottom: 10px; font-size: 1.2em; font-weight: bold;">{title_korean}</h4>
+    <div style="background-color: #f0f8ff; padding: 12px; border-radius: 6px; margin-bottom: 12px; border-left: 3px solid #0077b6;">
+        <strong>*</strong> {summary_oneline}
+    </div>
+</div>
+"""
+        
+        if details:
+            html_content += "<div style='margin-top: 8px;'>\n"
+            for detail in details:
+                html_content += f"<div style='margin-bottom: 6px; line-height: 1.4;'>- {detail}</div>\n"
+            html_content += "</div>"
+        
+        return html_content
+        
+    except json.JSONDecodeError as e:
+        print(f"JSON 파싱 오류: {e}")
+        print(f"원본 응답: {json_response}")
+        # JSON 파싱 실패 시 원본 텍스트 반환
+        return f"<div style='color: #666;'>요약 파싱 오류:<br>{json_response}</div>"
+    except Exception as e:
+        print(f"요약 포맷팅 오류: {e}")
+        return f"<div style='color: #666;'>요약 포맷팅 오류:<br>{json_response}</div>"
 
 # 1단계: 뉴스 제외 판단
 def filter_excluded_news(state: AgentState) -> AgentState:
