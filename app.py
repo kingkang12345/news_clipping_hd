@@ -692,7 +692,7 @@ if "산업분야" in analysis_scope:
     industry_fields = st.sidebar.multiselect(
         "산업 분야 선택",
         options=list(COMPANY_STRUCTURE_NEW[selected_group]["산업분야"].keys()),
-        default=["OEM_Keywords","Supplier_Keywords","Industry_Powertrain","Battery","Policy_Regulation","Events_Conferences"],
+        default=["배터리_Cell_Module_System","배터리_Charging_Simulation","전동화_Motor_drive","전동화_Control_Electronics","내연기관_연소","연료_대체연료","배출가스_후처리","구동계_변속기","하이브리드_열관리","시뮬레이션_제어","기타"],
         help="분석할 산업 분야를 선택하세요. 각 분야별로 세부 키워드를 선택할 수 있습니다."
     )
     
@@ -1635,16 +1635,16 @@ if st.button("뉴스 분석 시작", type="primary"):
                 source_keyword = news.get('source_keyword', '')
                 reason = news.get('reason', '')
                 
-                # 날짜 형식 변환
-                try:
-                    if 'GMT' in date_str:
+            # 날짜 형식 변환
+            try:
+                if 'GMT' in date_str:
                         date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
                         formatted_date = date_obj.strftime('%Y-%m-%d')
-                    else:
-                        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                else:
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
                         formatted_date = date_str
-                except:
-                    formatted_date = date_str if date_str else '날짜 정보 없음'
+            except:
+                        formatted_date = date_str if date_str else '날짜 정보 없음'
                 
                 # Google News URL 디코딩
                 original_url = url
@@ -1729,8 +1729,8 @@ if st.button("뉴스 분석 시작", type="primary"):
         
         <div class="original-url">
             <strong>원문 링크:</strong> <a href="{original_url}" target="_blank">{original_url}</a>
-        </div>
-    </div>
+                                    </div>
+                                </div>
 """
                 
                 # 진행상황 표시
@@ -1760,7 +1760,7 @@ if st.button("뉴스 분석 시작", type="primary"):
             
             st.success(f"🎉 총 {len(all_final_news)}개 기사의 HTML 이메일이 생성되었습니다!")
     
-    else:
+        else:
         st.info("선정된 기사가 없어 HTML 이메일을 생성할 수 없습니다.")
     
 
