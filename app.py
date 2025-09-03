@@ -1701,50 +1701,75 @@ if st.button("뉴스 분석 시작", type="primary"):
                                     import json
                                     import re
                                     
-                                    # JSON 응답에서 코드 블록 제거
-                                    json_text = ai_summary.strip()
-                                    if json_text.startswith("```json"):
-                                        json_text = json_text[7:]
-                                    if json_text.startswith("```"):
-                                        json_text = "\n".join(json_text.split("\n")[1:])
-                                    if json_text.endswith("```"):
-                                        json_text = "\n".join(json_text.split("\n")[:-1])
-                                    
-                                    json_text = json_text.strip()
-                                    
-                                    # JSON 정리 - 불필요한 공백과 줄바꿈 제거
-                                    json_text = re.sub(r'\s+', ' ', json_text)  # 연속된 공백을 하나로
-                                    json_text = re.sub(r'"\s*,\s*"', '", "', json_text)  # 쉼표 주변 정리
-                                    json_text = re.sub(r'{\s+', '{', json_text)  # 중괄호 뒤 공백 제거
-                                    json_text = re.sub(r'\s+}', '}', json_text)  # 중괄호 앞 공백 제거
-                                    json_text = re.sub(r'\[\s+', '[', json_text)  # 대괄호 뒤 공백 제거
-                                    json_text = re.sub(r'\s+\]', ']', json_text)  # 대괄호 앞 공백 제거
-                                    
-                                    # JSON 파싱 시도
-                                    try:
-                                        summary_data = json.loads(json_text)
-                                    except json.JSONDecodeError as e:
-                                        print(f"첫 번째 JSON 파싱 시도 실패: {e}")
-                                        # JSON 복구 시도
-                                        json_text = json_text.replace('\\"', '"')  # 이중 이스케이프 수정
-                                        json_text = re.sub(r'(?<!\\)"(?![,\]\}:\s])', '\\"', json_text)  # 문자열 내부 따옴표 이스케이프
-                                        summary_data = json.loads(json_text)
-                                    
-                                    ai_title_korean = summary_data.get('title', '')
-                                    ai_summary_oneline = summary_data.get('summary', '')
-                                    details = summary_data.get('details', [])
-                                    
-                                    # 세부 내용을 문자열로 결합
-                                    if details:
-                                        ai_details = " | ".join(details)
+                                    # HTML 태그가 포함된 경우 텍스트만 추출
+                                    if ai_summary.strip().startswith('<div'):
+                                        # HTML에서 텍스트만 추출
+                                        import re
+                                        # HTML 태그 제거
+                                        clean_text = re.sub(r'<[^>]+>', '', ai_summary)
+                                        # HTML 엔티티 변환
+                                        clean_text = clean_text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+                                        clean_text = clean_text.replace('&quot;', '"').replace('&#39;', "'").replace('&nbsp;', ' ')
+                                        # 연속된 공백과 줄바꿈 정리
+                                        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+                                        
+                                        # 간단한 파싱으로 제목, 요약, 세부사항 추출
+                                        lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
+                                        if len(lines) >= 2:
+                                            ai_title_korean = lines[0]
+                                            ai_summary_oneline = lines[1]
+                                            ai_details = " | ".join(lines[2:]) if len(lines) > 2 else ""
+                                        else:
+                                            ai_summary_oneline = clean_text[:200] + "..." if len(clean_text) > 200 else clean_text
+                                    else:
+                                        # JSON 형식 파싱
+                                        json_text = ai_summary.strip()
+                                        if json_text.startswith("```json"):
+                                            json_text = json_text[7:]
+                                        if json_text.startswith("```"):
+                                            json_text = "\n".join(json_text.split("\n")[1:])
+                                        if json_text.endswith("```"):
+                                            json_text = "\n".join(json_text.split("\n")[:-1])
+                                        
+                                        json_text = json_text.strip()
+                                        
+                                        # JSON 정리 - 불필요한 공백과 줄바꿈 제거
+                                        json_text = re.sub(r'\s+', ' ', json_text)  # 연속된 공백을 하나로
+                                        json_text = re.sub(r'"\s*,\s*"', '", "', json_text)  # 쉼표 주변 정리
+                                        json_text = re.sub(r'{\s+', '{', json_text)  # 중괄호 뒤 공백 제거
+                                        json_text = re.sub(r'\s+}', '}', json_text)  # 중괄호 앞 공백 제거
+                                        json_text = re.sub(r'\[\s+', '[', json_text)  # 대괄호 뒤 공백 제거
+                                        json_text = re.sub(r'\s+\]', ']', json_text)  # 대괄호 앞 공백 제거
+                                        
+                                        # JSON 파싱 시도
+                                        try:
+                                            summary_data = json.loads(json_text)
+                                        except json.JSONDecodeError as e:
+                                            print(f"Excel JSON 파싱 시도 실패: {e}")
+                                            # JSON 복구 시도
+                                            json_text = json_text.replace('\\"', '"')  # 이중 이스케이프 수정
+                                            json_text = re.sub(r'(?<!\\)"(?![,\]\}:\s])', '\\"', json_text)  # 문자열 내부 따옴표 이스케이프
+                                            summary_data = json.loads(json_text)
+                                        
+                                        ai_title_korean = summary_data.get('title', '')
+                                        ai_summary_oneline = summary_data.get('summary', '')
+                                        details = summary_data.get('details', [])
+                                        
+                                        # 세부 내용을 문자열로 결합
+                                        if details:
+                                            ai_details = " | ".join(details)
                                     
                                 except Exception as e:
                                     print(f"AI 요약 파싱 실패: {e}")
-                                    # JSON 파싱 실패 시 원본 텍스트 사용
-                                    ai_summary_oneline = ai_summary[:200] + "..." if len(ai_summary) > 200 else ai_summary
+                                    # JSON 파싱 실패 시 원본 텍스트 사용 (HTML 태그 제거)
+                                    import re
+                                    clean_text = re.sub(r'<[^>]+>', '', ai_summary)
+                                    ai_summary_oneline = clean_text[:200] + "..." if len(clean_text) > 200 else clean_text
                             elif ai_summary:
                                 # 추출 실패했지만 오류 메시지가 있는 경우
-                                ai_summary_oneline = ai_summary
+                                import re
+                                clean_text = re.sub(r'<[^>]+>', '', ai_summary)
+                                ai_summary_oneline = clean_text
                             break
                 
                 integrated_data.append({
