@@ -541,7 +541,7 @@ def _generate_article_summary(content: str, title: str, system_prompt: str) -> s
 2. 추론을 하지 말고 기사에 기반하여 요약하세요.
 3. 제목은 핵심적인 내용만 간결하게 한국어로 번역 (예: "Huawei's Aito M8 BEV officially launched at 50,000 USD with CATL battery and 705km range" → \화웨이, CATL 배터리 탑재 Aito M8 BEV 공식 출시")
 4. 기업명은 한국기업 제외하고 모두 영문명으로 작성
-5. 세부 내용을 기사 분량에 따라 1~3개 항목으로 정리 (기사가 짧으면 1~2개도 가능)
+5. 세부 내용을 3개 항목으로 정리 
 6. 차량 명은 영문으로 <> 안에 넣기
 7. PT/전동화 관점에서 뉴스 기사 요약
 8. 출력은 HP 또는 PS로 전환, 전기차 출력은 kW로, 엔진토크는 kgmf, 전기차 토크는 Nm. 전환 후 수치에 대해서 소수점 둘째 자리에서 반올림
@@ -561,8 +561,8 @@ JSON 형식으로 응답해주세요:
 
 [예시1]
 {{
-  "title_korean": "VW, BEV (ID. 시리즈) 가격 동결",
-  "summary_oneline": "폭스바겐이 '26년식부터 ID. 시리즈, T-Roc 등 BEV는 연례 가격 인상에서 제외, ICE는 평균 1.5% 인상 예정",
+  "title": "VW, BEV (ID. 시리즈) 가격 동결",
+  "summary": "폭스바겐이 '26년식부터 ID. 시리즈, T-Roc 등 BEV는 연례 가격 인상에서 제외, ICE는 평균 1.5% 인상 예정",
   "details": [
     "작년 '25년식 출시 모델에 대한 가격 연례 인상 시 ICE가격 2.1%에서 3.2%로 인상 및 BEV 가격은 동결한 것과 유사 행보",
     "올해 독일 내 VW 판매 차종 5대 중 1대는 BEV 모델인 점 등 시장 침투율 고려하여 BEV 가격 경쟁력 유지 및 소비자 부담 절감 목표",
@@ -572,8 +572,8 @@ JSON 형식으로 응답해주세요:
 
 [예시2]
 {{
-  "title_korean": "Renault, Geely GEA 플랫폼 기반 BEV/PHEV SUV 개발 추진",
-  "summary_oneline": "GEA는 2024년에 도입된 Geely의 최신 Global Intelligent New Energy Architecture 플랫폼",
+  "title": "Renault, Geely GEA 플랫폼 기반 BEV/PHEV SUV 개발 추진",
+  "summary": "GEA는 2024년에 도입된 Geely의 최신 Global Intelligent New Energy Architecture 플랫폼",
   "details": [
     "차체(드롭사이드, 패널밴 플러스, L-파티션 패널밴) 및 PT 옵션(디젤, BEV, PHEV) 다양화",
 "    ""e-Transporter는 Ford Pro와 공동 개발 결과로, 포드 e-Transit Custom과 동일 
@@ -1063,6 +1063,7 @@ def evaluate_importance(state: AgentState) -> AgentState:
                                 "url": original_news.get("url", ""),
                                 "press": original_news.get("press", ""),  # LLM이 제공한 press 대신 원본 press 사용
                                 "date": original_news.get("date", ""),
+                                "index": original_index,  # Excel에서 사용할 수 있도록 index 필드에 original_index 저장
                                 "original_index": original_index,
                                 "group_info": original_news["group_info"]
                             })
@@ -1082,6 +1083,7 @@ def evaluate_importance(state: AgentState) -> AgentState:
                                 "url": original_news.get("url", ""),
                                 "press": original_news.get("press", ""),  # LLM이 제공한 press 대신 원본 press 사용
                                 "date": original_news.get("date", ""),
+                                "index": original_index,  # Excel에서 사용할 수 있도록 index 필드에 original_index 저장
                                 "original_index": original_index,
                                 "group_info": original_news["group_info"]
                             })
