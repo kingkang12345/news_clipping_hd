@@ -1211,6 +1211,9 @@ if st.button("뉴스 분석 시작", type="primary"):
     # 모든 키워드 분석 결과를 저장할 딕셔너리
     all_results = {}
     
+    # 모든 키워드의 전체 분석 상태를 저장할 딕셔너리 (Excel 통합용)
+    all_analysis_states = {}
+    
     for i, company in enumerate(final_selected_companies, 1):
         with st.spinner(f"'{company}' 관련 뉴스를 수집하고 분석 중입니다..."):
             # 해당 회사의 연관 키워드 확장 (세션 상태에서 가져옴)
@@ -1379,35 +1382,16 @@ if st.button("뉴스 분석 시작", type="primary"):
             # 키워드별 분석 결과 저장
             all_results[company] = final_state["final_selection"]
             
+            # 전체 분석 상태 저장 (Excel 통합용)
+            all_analysis_states[company] = final_state
+            
             # 키워드 구분선 추가
             st.markdown("---")
             
             # 키워드별 섹션 구분
             st.markdown(f"## 📊 {company} 분석 결과")
             
-            # Excel 다운로드 버튼 추가
-            col1, col2 = st.columns([3, 1])
-            with col2:
-                try:
-                    excel_file = create_excel_analysis_report(
-                        keyword=company,
-                        final_state=final_state,
-                        start_date=start_date.strftime('%Y-%m-%d'),
-                        end_date=end_date.strftime('%Y-%m-%d')
-                    )
-                    
-                    current_time = datetime.now().strftime("%Y%m%d_%H%M")
-                    filename = f"뉴스분석_{company}_{current_time}.xlsx"
-                    
-                    st.download_button(
-                        label="📊 Excel 다운로드",
-                        data=excel_file,
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        help=f"'{company}' 키워드 전체 뉴스 분석 결과를 Excel 파일로 다운로드합니다."
-                    )
-                except Exception as e:
-                    st.error(f"Excel 파일 생성 중 오류가 발생했습니다: {str(e)}")
+
             
             # 전체 뉴스 표시 (필터링 전)
             with st.expander(f"📰 '{company}' 관련 전체 뉴스 (필터링 전)"):
@@ -1479,7 +1463,7 @@ if st.button("뉴스 분석 시작", type="primary"):
             
             # 최종 선정된 뉴스가 있는 경우에만 표시
             if final_state["final_selection"]:
-                st.markdown("### 📰 최종 선정된 뉴스")
+                st.markdown("### 📰 최종 선정된 뉴스")  
                 news_style = ""
                 reason_prefix = "선별 이유: "
             
@@ -1594,181 +1578,247 @@ if st.button("뉴스 분석 시작", type="primary"):
     
     # 통합 Excel 생성 함수
     def create_integrated_excel_report(all_results_data, start_date, end_date):
-        """모든 키워드의 분석 결과를 통합한 Excel 파일 생성"""
+        """모든 키워드의 분석 결과를 하나의 시트에 통합한 Excel 파일 생성"""
         bio = io.BytesIO()
         
-        with pd.ExcelWriter(bio, engine='openpyxl') as writer:
-            # 각 키워드별로 시트 생성
-            for company, final_state in all_results_data.items():
-                if not final_state:  # final_state가 비어있으면 건너뛰기
-                    continue
-                    
-                # 해당 키워드의 데이터 처리 (기존 함수와 동일한 로직)
-                news_data = final_state.get("news_data", [])
-                excluded_news = final_state.get("excluded_news", [])
-                borderline_news = final_state.get("borderline_news", [])
-                retained_news = final_state.get("retained_news", [])
-                grouped_news = final_state.get("grouped_news", [])
-                final_selection = final_state.get("final_selection", [])
-                not_selected_news = final_state.get("not_selected_news", [])
+        # 모든 키워드의 데이터를 통합할 리스트
+        integrated_data = []
+        
+        # 각 키워드별 데이터 처리
+        for company, final_state in all_results_data.items():
+            if not final_state:  # final_state가 비어있으면 건너뛰기
+                continue
                 
-                # 뉴스 상태 추적
-                news_status = {}
-                
-                # 제외된 뉴스 처리
-                for news in excluded_news:
-                    news_status[news.get('index', -1)] = {
-                        'status': '제외',
-                        'reason': news.get('reason', ''),
-                        'group': '',
-                        'final_reason': ''
-                    }
-                
-                # 보류 뉴스 처리
-                for news in borderline_news:
-                    news_status[news.get('index', -1)] = {
-                        'status': '보류',
-                        'reason': news.get('reason', ''),
-                        'group': '',
-                        'final_reason': ''
-                    }
-                
-                # 유지 뉴스 처리
-                for news in retained_news:
-                    news_status[news.get('index', -1)] = {
-                        'status': '유지',
-                        'reason': news.get('reason', ''),
-                        'group': '',
-                        'final_reason': ''
-                    }
-                
-                # 그룹핑 정보 처리
-                for group in grouped_news:
-                    group_indices = group.get('indices', [])
-                    selected_index = group.get('selected_index', -1)
-                    group_info = f"그룹 {group_indices} (선택: {selected_index})"
-                    
-                    for idx in group_indices:
-                        if idx in news_status:
-                            news_status[idx]['group'] = group_info
-                            if idx == selected_index:
-                                news_status[idx]['status'] = '그룹 대표 선택'
-                            else:
-                                news_status[idx]['status'] = '그룹 내 미선택'
-                
-                # 최종 선택된 뉴스 처리
-                for news in final_selection:
-                    original_index = -1
-                    for i, original_news in enumerate(news_data, 1):
-                        if original_news.get('url') == news.get('url') or original_news.get('content') == news.get('title'):
-                            original_index = i
-                            break
-                    
-                    if original_index in news_status:
-                        news_status[original_index]['status'] = '최종 선택'
-                        news_status[original_index]['final_reason'] = news.get('reason', '')
-                
-                # 최종 선택되지 않은 뉴스 처리
-                for news in not_selected_news:
-                    news_index = news.get('index', -1)
-                    if news_index in news_status:
-                        news_status[news_index]['final_reason'] = f"미선택 사유: {news.get('reason', '')}"
-                
-                # Excel 데이터 생성
-                all_data = []
-                for i, news in enumerate(news_data, 1):
-                    status_info = news_status.get(i, {
-                        'status': '상태 불명',
-                        'reason': '',
-                        'group': '',
-                        'final_reason': ''
-                    })
-                    
-                    # 날짜 형식 변환
-                    date_str = news.get('date', '')
-                    try:
-                        if 'GMT' in date_str:
-                            date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
-                            formatted_date = date_obj.strftime('%Y-%m-%d %H:%M')
-                        else:
-                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-                            formatted_date = date_str
-                    except:
-                        formatted_date = date_str if date_str else '날짜 정보 없음'
-                    
-                    all_data.append({
-                        '순번': i,
-                        '제목': news.get('content', '제목 없음'),
-                        '언론사': news.get('press', '알 수 없음'),
-                        '날짜': formatted_date,
-                        'URL': news.get('url', ''),
-                        '분석 상태': status_info['status'],
-                        '1차 분류 사유': status_info['reason'],
-                        '그룹핑 정보': status_info['group'],
-                        '최종 선택 사유': status_info['final_reason']
-                    })
-                
-                # DataFrame 생성 및 시트에 추가
-                if all_data:
-                    df = pd.DataFrame(all_data)
-                    sheet_name = company[:30] if len(company) > 30 else company  # 시트명 길이 제한
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
-                    
-                    # 스타일 적용
-                    worksheet = writer.sheets[sheet_name]
-                    from openpyxl.styles import Font, PatternFill, Alignment
-                    
-                    header_font = Font(bold=True, color='FFFFFF')
-                    header_fill = PatternFill(start_color='D04A02', end_color='D04A02', fill_type='solid')
-                    header_alignment = Alignment(horizontal='center', vertical='center')
-                    
-                    # 헤더에 스타일 적용
-                    for cell in worksheet[1]:
-                        cell.font = header_font
-                        cell.fill = header_fill
-                        cell.alignment = header_alignment
-                    
-                    # 열 너비 자동 조정
-                    for column in worksheet.columns:
-                        max_length = 0
-                        column_letter = column[0].column_letter
-                        
-                        for cell in column:
-                            try:
-                                if len(str(cell.value)) > max_length:
-                                    max_length = len(str(cell.value))
-                            except:
-                                pass
-                        
-                        adjusted_width = min(max(max_length + 2, 10), 50)
-                        worksheet.column_dimensions[column_letter].width = adjusted_width
-                    
-                    # 상태별 색상 구분
-                    status_colors = {
-                        '최종 선택': 'C6EFCE',
-                        '그룹 대표 선택': 'C6EFCE',
-                        '제외': 'FFC7CE',
-                        '보류': 'FFEB9C',
-                        '유지': 'BDD7EE',
-                        '그룹 내 미선택': 'F2F2F2'
-                    }
-                    
-                    # 데이터 행에 색상 적용
-                    for row in range(2, len(df) + 2):
-                        status = worksheet[f'F{row}'].value
-                        if status in status_colors:
-                            fill = PatternFill(start_color=status_colors[status], 
-                                             end_color=status_colors[status], 
-                                             fill_type='solid')
-                            for col in range(1, len(df.columns) + 1):
-                                worksheet.cell(row=row, column=col).fill = fill
+            # 해당 키워드의 데이터 처리
+            news_data = final_state.get("news_data", [])
+            excluded_news = final_state.get("excluded_news", [])
+            borderline_news = final_state.get("borderline_news", [])
+            retained_news = final_state.get("retained_news", [])
+            grouped_news = final_state.get("grouped_news", [])
+            final_selection = final_state.get("final_selection", [])
+            not_selected_news = final_state.get("not_selected_news", [])
             
-            # 전체 요약 시트 추가
+            # 뉴스 상태 추적
+            news_status = {}
+            
+            # 제외된 뉴스 처리
+            for news in excluded_news:
+                news_status[news.get('index', -1)] = {
+                    'status': '제외',
+                    'reason': news.get('reason', ''),
+                    'group': '',
+                    'final_reason': ''
+                }
+            
+            # 보류 뉴스 처리
+            for news in borderline_news:
+                news_status[news.get('index', -1)] = {
+                    'status': '보류',
+                    'reason': news.get('reason', ''),
+                    'group': '',
+                    'final_reason': ''
+                }
+            
+            # 유지 뉴스 처리
+            for news in retained_news:
+                news_status[news.get('index', -1)] = {
+                    'status': '유지',
+                    'reason': news.get('reason', ''),
+                    'group': '',
+                    'final_reason': ''
+                }
+            
+            # 그룹핑 정보 처리
+            for group in grouped_news:
+                group_indices = group.get('indices', [])
+                selected_index = group.get('selected_index', -1)
+                group_info = f"그룹 {group_indices} (선택: {selected_index})"
+                
+                for idx in group_indices:
+                    if idx in news_status:
+                        news_status[idx]['group'] = group_info
+                        if idx == selected_index:
+                            news_status[idx]['status'] = '그룹 대표 선택'
+                        else:
+                            news_status[idx]['status'] = '그룹 내 미선택'
+            
+            # 최종 선택된 뉴스 처리
+            for news in final_selection:
+                original_index = -1
+                for i, original_news in enumerate(news_data, 1):
+                    if original_news.get('url') == news.get('url') or original_news.get('content') == news.get('title'):
+                        original_index = i
+                        break
+                
+                if original_index in news_status:
+                    news_status[original_index]['status'] = '최종 선택'
+                    news_status[original_index]['final_reason'] = news.get('reason', '')
+            
+            # 최종 선택되지 않은 뉴스 처리
+            for news in not_selected_news:
+                news_index = news.get('index', -1)
+                if news_index in news_status:
+                    news_status[news_index]['final_reason'] = f"미선택 사유: {news.get('reason', '')}"
+            
+            # 해당 키워드의 모든 뉴스 데이터를 통합 리스트에 추가
+            for i, news in enumerate(news_data, 1):
+                status_info = news_status.get(i, {
+                    'status': '상태 불명',
+                    'reason': '',
+                    'group': '',
+                    'final_reason': ''
+                })
+                
+                # 날짜 형식 변환
+                date_str = news.get('date', '')
+                try:
+                    if 'GMT' in date_str:
+                        date_obj = datetime.strptime(date_str, '%a, %d %b %Y %H:%M:%S %Z')
+                        formatted_date = date_obj.strftime('%Y-%m-%d %H:%M')
+                    else:
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                        formatted_date = date_str
+                except:
+                    formatted_date = date_str if date_str else '날짜 정보 없음'
+                
+                # AI 요약 정보 파싱 (최종 선택된 뉴스인 경우에만)
+                ai_title_korean = ""
+                ai_summary_oneline = ""
+                ai_details = ""
+                extraction_success = False
+                
+                if status_info['status'] == '최종 선택':
+                    # final_selection에서 해당 뉴스 찾기
+                    for selected_news in final_selection:
+                        if (selected_news.get('url') == news.get('url') or 
+                            selected_news.get('title') == news.get('content')):
+                            
+                            ai_summary = selected_news.get('ai_summary', '')
+                            extraction_success = selected_news.get('extraction_success', False)
+                            
+                            if ai_summary and extraction_success:
+                                try:
+                                    import json
+                                    import re
+                                    
+                                    # JSON 응답에서 코드 블록 제거
+                                    json_text = ai_summary.strip()
+                                    if json_text.startswith("```json"):
+                                        json_text = json_text[7:]
+                                    if json_text.startswith("```"):
+                                        json_text = "\n".join(json_text.split("\n")[1:])
+                                    if json_text.endswith("```"):
+                                        json_text = "\n".join(json_text.split("\n")[:-1])
+                                    
+                                    json_text = json_text.strip()
+                                    summary_data = json.loads(json_text)
+                                    
+                                    ai_title_korean = summary_data.get('title_korean', summary_data.get('title', ''))
+                                    ai_summary_oneline = summary_data.get('summary_oneline', summary_data.get('summary', ''))
+                                    details = summary_data.get('details', [])
+                                    
+                                    # 세부 내용을 문자열로 결합
+                                    if details:
+                                        ai_details = " | ".join(details)
+                                    
+                                except Exception as e:
+                                    print(f"AI 요약 파싱 실패: {e}")
+                                    # JSON 파싱 실패 시 원본 텍스트 사용
+                                    ai_summary_oneline = ai_summary[:200] + "..." if len(ai_summary) > 200 else ai_summary
+                            elif ai_summary:
+                                # 추출 실패했지만 오류 메시지가 있는 경우
+                                ai_summary_oneline = ai_summary
+                            break
+                
+                integrated_data.append({
+                    '키워드': company,  # 맨 앞 컬럼에 키워드 추가
+                    '순번': i,
+                    '제목': news.get('content', '제목 없음'),
+                    '언론사': news.get('press', '알 수 없음'),
+                    '날짜': formatted_date,
+                    'URL': news.get('url', ''),
+                    '분석 상태': status_info['status'],
+                    '1차 분류 사유': status_info['reason'],
+                    '그룹핑 정보': status_info['group'],
+                    '최종 선택 사유': status_info['final_reason'],
+                    'AI 번역 제목': ai_title_korean,
+                    'AI 핵심 요약': ai_summary_oneline,
+                    'AI 세부 내용': ai_details,
+                    '원문 추출 성공': '성공' if extraction_success else '실패' if status_info['status'] == '최종 선택' else ''
+                })
+        
+        # DataFrame 생성
+        df = pd.DataFrame(integrated_data)
+        
+        with pd.ExcelWriter(bio, engine='openpyxl') as writer:
+            # 통합 데이터를 하나의 시트에 저장
+            df.to_excel(writer, sheet_name='전체 뉴스 분석', index=False)
+            
+            # 스타일 적용
+            worksheet = writer.sheets['전체 뉴스 분석']
+            from openpyxl.styles import Font, PatternFill, Alignment
+            
+            header_font = Font(bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='D04A02', end_color='D04A02', fill_type='solid')
+            header_alignment = Alignment(horizontal='center', vertical='center')
+            
+            # 헤더에 스타일 적용
+            for cell in worksheet[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+            
+            # 열 너비 자동 조정
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                
+                adjusted_width = min(max(max_length + 2, 10), 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # 상태별 색상 구분
+            status_colors = {
+                '최종 선택': 'C6EFCE',
+                '그룹 대표 선택': 'C6EFCE',
+                '제외': 'FFC7CE',
+                '보류': 'FFEB9C',
+                '유지': 'BDD7EE',
+                '그룹 내 미선택': 'F2F2F2'
+            }
+            
+            # 데이터 행에 색상 적용 (분석 상태 컬럼 찾기)
+            status_col_index = None
+            for col_idx, col_name in enumerate(df.columns, 1):
+                if col_name == '분석 상태':
+                    status_col_index = col_idx
+                    break
+            
+            if status_col_index:
+                status_col_letter = chr(64 + status_col_index)  # A=65, B=66, ...
+                for row in range(2, len(df) + 2):
+                    status = worksheet[f'{status_col_letter}{row}'].value
+                    if status in status_colors:
+                        fill = PatternFill(start_color=status_colors[status], 
+                                         end_color=status_colors[status], 
+                                         fill_type='solid')
+                        for col in range(1, len(df.columns) + 1):
+                            worksheet.cell(row=row, column=col).fill = fill
+            
+            # 요약 시트 추가
             summary_data = []
             summary_data.append(['분석 기간', f"{start_date} ~ {end_date}"])
             summary_data.append(['분석 키워드 수', len(all_results_data)])
+            summary_data.append(['전체 뉴스 수', len(integrated_data)])
             summary_data.append(['', ''])  # 빈 행
             
+            # 키워드별 통계
             for company, final_state in all_results_data.items():
                 if final_state:
                     news_count = len(final_state.get("news_data", []))
@@ -1777,10 +1827,10 @@ if st.button("뉴스 분석 시작", type="primary"):
                     summary_data.append([f"{company} - 최종 선택", selected_count])
             
             summary_df = pd.DataFrame(summary_data, columns=['항목', '값'])
-            summary_df.to_excel(writer, sheet_name='전체 요약', index=False)
+            summary_df.to_excel(writer, sheet_name='분석 요약', index=False)
             
             # 요약 시트 스타일 적용
-            summary_ws = writer.sheets['전체 요약']
+            summary_ws = writer.sheets['분석 요약']
             for cell in summary_ws[1]:
                 cell.font = Font(bold=True, color='FFFFFF')
                 cell.fill = PatternFill(start_color='D04A02', end_color='D04A02', fill_type='solid')
@@ -1795,9 +1845,27 @@ if st.button("뉴스 분석 시작", type="primary"):
     # 통합 Excel 다운로드 버튼
     if any(all_results.values()):  # 분석 결과가 있는 경우에만 표시
         try:
-            # all_results에는 final_selection만 있으므로, 전체 상태 정보를 포함하는 딕셔너리 생성 필요
-            # 이를 위해 세션 상태에 각 키워드별 전체 분석 상태를 저장해야 함
-            st.info("💡 개별 키워드별 Excel 파일은 각 섹션의 'Excel 다운로드' 버튼을 이용해주세요.")
+            # 통합 Excel 파일 생성
+            integrated_excel = create_integrated_excel_report(
+                all_results_data=all_analysis_states,
+                start_date=start_date.strftime('%Y-%m-%d'),
+                end_date=end_date.strftime('%Y-%m-%d')
+            )
+            
+            current_time = datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"뉴스분석_통합결과_{current_time}.xlsx"
+            
+            st.download_button(
+                label="📊 전체 분석 결과 Excel 다운로드",
+                data=integrated_excel,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="모든 키워드의 전체 뉴스 분석 과정을 통합한 Excel 파일을 다운로드합니다.",
+                type="primary"
+            )
+            
+            st.success(f"✅ {len(all_analysis_states)}개 키워드의 통합 분석 결과를 Excel로 다운로드할 수 있습니다!")
+            
         except Exception as e:
             st.error(f"통합 Excel 파일 생성 중 오류가 발생했습니다: {str(e)}")
     
