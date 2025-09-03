@@ -337,75 +337,96 @@ def create_excel_analysis_report(keyword, final_state, start_date, end_date):
     final_selection = final_state.get("final_selection", [])
     not_selected_news = final_state.get("not_selected_news", [])
     
-    # 각 뉴스의 상태를 추적하기 위한 딕셔너리
+    # 각 뉴스의 상태를 추적하기 위한 딕셔너리 (URL 기반)
     news_status = {}
     
     # 제외된 뉴스 처리
     for news in excluded_news:
-        news_status[news.get('index', -1)] = {
-            'status': '제외',
-            'reason': news.get('reason', ''),
-            'group': '',
-            'final_reason': ''
-        }
+        news_url = news.get('url', '')
+        news_title = news.get('title', '')
+        key = news_url if news_url else news_title
+        if key:
+            news_status[key] = {
+                'status': '제외',
+                'reason': news.get('reason', ''),
+                'group': '',
+                'final_reason': ''
+            }
     
     # 보류 뉴스 처리
     for news in borderline_news:
-        news_status[news.get('index', -1)] = {
-            'status': '보류',
-            'reason': news.get('reason', ''),
-            'group': '',
-            'final_reason': ''
-        }
+        news_url = news.get('url', '')
+        news_title = news.get('title', '')
+        key = news_url if news_url else news_title
+        if key:
+            news_status[key] = {
+                'status': '보류',
+                'reason': news.get('reason', ''),
+                'group': '',
+                'final_reason': ''
+            }
     
     # 유지 뉴스 처리
     for news in retained_news:
-        news_status[news.get('index', -1)] = {
-            'status': '유지',
-            'reason': news.get('reason', ''),
-            'group': '',
-            'final_reason': ''
-        }
+        news_url = news.get('url', '')
+        news_title = news.get('title', '')
+        key = news_url if news_url else news_title
+        if key:
+            news_status[key] = {
+                'status': '유지',
+                'reason': news.get('reason', ''),
+                'group': '',
+                'final_reason': ''
+            }
     
-    # 그룹핑 정보 처리
+    # 그룹핑 정보 처리 (URL 기반)
     for group in grouped_news:
         group_indices = group.get('indices', [])
         selected_index = group.get('selected_index', -1)
-        group_reason = group.get('reason', '')
-        
-        # 그룹 정보를 문자열로 변환
         group_info = f"그룹 {group_indices} (선택: {selected_index})"
         
+        # 그룹에 속한 뉴스들을 실제 뉴스 데이터에서 찾기
         for idx in group_indices:
-            if idx in news_status:
-                news_status[idx]['group'] = group_info
-                if idx == selected_index:
-                    news_status[idx]['status'] = '그룹 대표 선택'
-                else:
-                    news_status[idx]['status'] = '그룹 내 미선택'
+            if 1 <= idx <= len(news_data):
+                target_news = news_data[idx - 1]
+                target_url = target_news.get('url', '')
+                target_title = target_news.get('content', '')
+                key = target_url if target_url else target_title
+                
+                if key and key in news_status:
+                    news_status[key]['group'] = group_info
+                    if idx == selected_index:
+                        news_status[key]['status'] = '그룹 대표 선택'
+                    else:
+                        news_status[key]['status'] = '그룹 내 미선택'
     
-    # 최종 선택된 뉴스 처리
+    # 최종 선택된 뉴스 처리 (URL 기반)
     for news in final_selection:
-        # 원본 뉴스에서 인덱스 찾기
-        original_index = -1
-        for i, original_news in enumerate(news_data, 1):
-            if original_news.get('url') == news.get('url') or original_news.get('content') == news.get('title'):
-                original_index = i
-                break
+        news_url = news.get('url', '')
+        news_title = news.get('title', '')
+        key = news_url if news_url else news_title
         
-        if original_index in news_status:
-            news_status[original_index]['status'] = '최종 선택'
-            news_status[original_index]['final_reason'] = news.get('reason', '')
+        if key and key in news_status:
+            news_status[key]['status'] = '최종 선택'
+            news_status[key]['final_reason'] = news.get('reason', '')
     
-    # 최종 선택되지 않은 뉴스 처리
+    # 최종 선택되지 않은 뉴스 처리 (URL 기반)
     for news in not_selected_news:
-        news_index = news.get('index', -1)
-        if news_index in news_status:
-            news_status[news_index]['final_reason'] = f"미선택 사유: {news.get('reason', '')}"
+        news_url = news.get('url', '')
+        news_title = news.get('title', '')
+        key = news_url if news_url else news_title
+        
+        if key and key in news_status:
+            news_status[key]['final_reason'] = f"미선택 사유: {news.get('reason', '')}"
     
     # Excel 데이터 생성
     for i, news in enumerate(news_data, 1):
-        status_info = news_status.get(i, {
+        # URL 또는 제목을 키로 사용하여 상태 정보 찾기
+        news_url = news.get('url', '')
+        news_title = news.get('content', '')
+        key = news_url if news_url else news_title
+        
+        status_info = news_status.get(key, {
             'status': '상태 불명',
             'reason': '',
             'group': '',
@@ -1598,71 +1619,99 @@ if st.button("뉴스 분석 시작", type="primary"):
             final_selection = final_state.get("final_selection", [])
             not_selected_news = final_state.get("not_selected_news", [])
             
-            # 뉴스 상태 추적
+            # 뉴스 상태 추적 (URL 기반으로 변경)
             news_status = {}
             
             # 제외된 뉴스 처리
             for news in excluded_news:
-                news_status[news.get('index', -1)] = {
-                    'status': '제외',
-                    'reason': news.get('reason', ''),
-                    'group': '',
-                    'final_reason': ''
-                }
+                # URL을 키로 사용하여 매칭
+                news_url = news.get('url', '')
+                news_title = news.get('title', '')
+                # URL이 없으면 제목으로 매칭
+                key = news_url if news_url else news_title
+                if key:
+                    news_status[key] = {
+                        'status': '제외',
+                        'reason': news.get('reason', ''),
+                        'group': '',
+                        'final_reason': ''
+                    }
             
             # 보류 뉴스 처리
             for news in borderline_news:
-                news_status[news.get('index', -1)] = {
-                    'status': '보류',
-                    'reason': news.get('reason', ''),
-                    'group': '',
-                    'final_reason': ''
-                }
+                news_url = news.get('url', '')
+                news_title = news.get('title', '')
+                key = news_url if news_url else news_title
+                if key:
+                    news_status[key] = {
+                        'status': '보류',
+                        'reason': news.get('reason', ''),
+                        'group': '',
+                        'final_reason': ''
+                    }
             
             # 유지 뉴스 처리
             for news in retained_news:
-                news_status[news.get('index', -1)] = {
-                    'status': '유지',
-                    'reason': news.get('reason', ''),
-                    'group': '',
-                    'final_reason': ''
-                }
+                news_url = news.get('url', '')
+                news_title = news.get('title', '')
+                key = news_url if news_url else news_title
+                if key:
+                    news_status[key] = {
+                        'status': '유지',
+                        'reason': news.get('reason', ''),
+                        'group': '',
+                        'final_reason': ''
+                    }
             
-            # 그룹핑 정보 처리
+            # 그룹핑 정보 처리 (인덱스 대신 실제 뉴스로 매칭)
             for group in grouped_news:
                 group_indices = group.get('indices', [])
                 selected_index = group.get('selected_index', -1)
                 group_info = f"그룹 {group_indices} (선택: {selected_index})"
                 
+                # 그룹에 속한 뉴스들을 실제 뉴스 데이터에서 찾기
                 for idx in group_indices:
-                    if idx in news_status:
-                        news_status[idx]['group'] = group_info
-                        if idx == selected_index:
-                            news_status[idx]['status'] = '그룹 대표 선택'
-                        else:
-                            news_status[idx]['status'] = '그룹 내 미선택'
+                    # 현재 단계의 뉴스 데이터에서 해당 인덱스의 뉴스 찾기 (1-based)
+                    if 1 <= idx <= len(news_data):
+                        target_news = news_data[idx - 1]  # 0-based 인덱스로 변환
+                        target_url = target_news.get('url', '')
+                        target_title = target_news.get('content', '')
+                        key = target_url if target_url else target_title
+                        
+                        if key and key in news_status:
+                            news_status[key]['group'] = group_info
+                            if idx == selected_index:
+                                news_status[key]['status'] = '그룹 대표 선택'
+                            else:
+                                news_status[key]['status'] = '그룹 내 미선택'
             
-            # 최종 선택된 뉴스 처리
+            # 최종 선택된 뉴스 처리 (URL 기반)
             for news in final_selection:
-                original_index = -1
-                for i, original_news in enumerate(news_data, 1):
-                    if original_news.get('url') == news.get('url') or original_news.get('content') == news.get('title'):
-                        original_index = i
-                        break
+                news_url = news.get('url', '')
+                news_title = news.get('title', '')
+                key = news_url if news_url else news_title
                 
-                if original_index in news_status:
-                    news_status[original_index]['status'] = '최종 선택'
-                    news_status[original_index]['final_reason'] = news.get('reason', '')
+                if key and key in news_status:
+                    news_status[key]['status'] = '최종 선택'
+                    news_status[key]['final_reason'] = news.get('reason', '')
             
-            # 최종 선택되지 않은 뉴스 처리
+            # 최종 선택되지 않은 뉴스 처리 (URL 기반)
             for news in not_selected_news:
-                news_index = news.get('index', -1)
-                if news_index in news_status:
-                    news_status[news_index]['final_reason'] = f"미선택 사유: {news.get('reason', '')}"
+                news_url = news.get('url', '')
+                news_title = news.get('title', '')
+                key = news_url if news_url else news_title
+                
+                if key and key in news_status:
+                    news_status[key]['final_reason'] = f"미선택 사유: {news.get('reason', '')}"
             
             # 해당 키워드의 모든 뉴스 데이터를 통합 리스트에 추가
             for i, news in enumerate(news_data, 1):
-                status_info = news_status.get(i, {
+                # URL 또는 제목을 키로 사용하여 상태 정보 찾기
+                news_url = news.get('url', '')
+                news_title = news.get('content', '')
+                key = news_url if news_url else news_title
+                
+                status_info = news_status.get(key, {
                     'status': '상태 불명',
                     'reason': '',
                     'group': '',
