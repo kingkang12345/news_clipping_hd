@@ -212,7 +212,7 @@ def collect_news(state: AgentState) -> AgentState:
             # 각 대상 지역에서 뉴스 검색
             keyword_results = []
             for region in target_regions:
-                region_results = news.search_by_keyword(kw, k=max_results//len(target_regions), region=region)
+                region_results = news.search_by_keyword(kw, k=max_results, region=region)  # 각 지역에서 max_results 개씩
                 keyword_results.extend(region_results)
                 print(f"  - {region}에서 {len(region_results)}개 뉴스 수집")
             
@@ -546,6 +546,7 @@ def _generate_article_summary(content: str, title: str, system_prompt: str) -> s
 7. PT/전동화 관점에서 뉴스 기사 요약
 8. 출력은 HP 또는 PS로 전환, 전기차 출력은 kW로, 엔진토크는 kgmf, 전기차 토크는 Nm. 전환 후 수치에 대해서 소수점 둘째 자리에서 반올림
 
+
 [응답 형식]
 JSON 형식으로 응답해주세요:
 {{
@@ -753,8 +754,7 @@ def filter_excluded_news(state: AgentState) -> AgentState:
 
 [응답 요구사항]
 1. 제외/보류/유지 사유는 간단명료하게 작성
-2. 각 카테고리별 최대 20개까지만 포함
-3. 응답은 완전한 JSON 형식이어야 함
+2. 응답은 완전한 JSON 형식이어야 함
 
 다음과 같은 JSON 형식으로 응답해주세요:
 {{
