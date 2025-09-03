@@ -576,9 +576,7 @@ JSON 형식으로 응답해주세요:
   "summary": "GEA는 2024년에 도입된 Geely의 최신 Global Intelligent New Energy Architecture 플랫폼",
   "details": [
     "차체(드롭사이드, 패널밴 플러스, L-파티션 패널밴) 및 PT 옵션(디젤, BEV, PHEV) 다양화",
-"    ""e-Transporter는 Ford Pro와 공동 개발 결과로, 포드 e-Transit Custom과 동일 
-      플랫폼 적용, 터키 코자엘리에서 생산되며, 화물·승객 겸용 및 건설·특수 목적 맞춤 
-      사양 선택 지원"","
+    "e-Transporter는 Ford Pro와 공동 개발 결과로, 포드 e-Transit Custom과 동일 플랫폼 적용, 터키 코자엘리에서 생산되며, 화물·승객 겸용 및 건설·특수 목적 맞춤 사양 선택 지원",
     "BEV버전은 64kWh 배터리 탑재 및 3가지 모터 사양(100kW/160kW/210kW), AER 279~353km",
   ]
 }}
@@ -691,8 +689,8 @@ def _format_json_summary(json_response: str) -> str:
         summary_data = json.loads(json_text)
         
         # HTML 형식으로 변환
-        title_korean = summary_data.get('title_korean', '제목 없음')
-        summary_oneline = summary_data.get('summary_oneline', '요약 없음')
+        title_korean = summary_data.get('title', '제목 없음')
+        summary_oneline = summary_data.get('summary', '요약 없음')
         details = summary_data.get('details', [])
         
         # HTML 포맷팅

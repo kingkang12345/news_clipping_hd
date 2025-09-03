@@ -1713,8 +1713,8 @@ if st.button("뉴스 분석 시작", type="primary"):
                                     json_text = json_text.strip()
                                     summary_data = json.loads(json_text)
                                     
-                                    ai_title_korean = summary_data.get('title_korean', summary_data.get('title', ''))
-                                    ai_summary_oneline = summary_data.get('summary_oneline', summary_data.get('summary', ''))
+                                    ai_title_korean = summary_data.get('title', '')
+                                    ai_summary_oneline = summary_data.get('summary', '')
                                     details = summary_data.get('details', [])
                                     
                                     # 세부 내용을 문자열로 결합
@@ -1973,8 +1973,8 @@ if st.button("뉴스 분석 시작", type="primary"):
                             json_text = json_text.strip()
                             summary_data = json.loads(json_text)
                             
-                            korean_title = summary_data.get('title_korean', '번역 제목 없음')
-                            oneline_summary = summary_data.get('summary_oneline', '요약 없음')
+                            korean_title = summary_data.get('title', '번역 제목 없음')
+                            oneline_summary = summary_data.get('summary', '요약 없음')
                             details = summary_data.get('details', [])
                             
                             # 세부 내용 HTML 생성
