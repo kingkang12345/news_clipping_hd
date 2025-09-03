@@ -685,8 +685,24 @@ def _format_json_summary(json_response: str) -> str:
         
         json_text = json_text.strip()
         
-        # JSON 파싱
-        summary_data = json.loads(json_text)
+        # JSON 정리 - 불필요한 공백과 줄바꿈 제거
+        json_text = re.sub(r'\s+', ' ', json_text)  # 연속된 공백을 하나로
+        json_text = re.sub(r'"\s*,\s*"', '", "', json_text)  # 쉼표 주변 정리
+        json_text = re.sub(r'{\s+', '{', json_text)  # 중괄호 뒤 공백 제거
+        json_text = re.sub(r'\s+}', '}', json_text)  # 중괄호 앞 공백 제거
+        json_text = re.sub(r'\[\s+', '[', json_text)  # 대괄호 뒤 공백 제거
+        json_text = re.sub(r'\s+\]', ']', json_text)  # 대괄호 앞 공백 제거
+        
+        # JSON 파싱 시도
+        try:
+            summary_data = json.loads(json_text)
+        except json.JSONDecodeError as e:
+            print(f"첫 번째 JSON 파싱 시도 실패: {e}")
+            # JSON 복구 시도
+            # 잘못된 따옴표나 이스케이프 문제 수정
+            json_text = json_text.replace('\\"', '"')  # 이중 이스케이프 수정
+            json_text = re.sub(r'(?<!\\)"(?![,\]\}:\s])', '\\"', json_text)  # 문자열 내부 따옴표 이스케이프
+            summary_data = json.loads(json_text)
         
         # HTML 형식으로 변환
         title_korean = summary_data.get('title', '제목 없음')
@@ -713,6 +729,7 @@ def _format_json_summary(json_response: str) -> str:
         
     except json.JSONDecodeError as e:
         print(f"JSON 파싱 오류: {e}")
+        print(f"정리된 JSON 텍스트: {json_text if 'json_text' in locals() else 'N/A'}")
         print(f"원본 응답: {json_response}")
         # JSON 파싱 실패 시 원본 텍스트 반환
         return f"<div style='color: #666;'>요약 파싱 오류:<br>{json_response}</div>"

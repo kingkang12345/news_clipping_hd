@@ -1711,7 +1711,24 @@ if st.button("뉴스 분석 시작", type="primary"):
                                         json_text = "\n".join(json_text.split("\n")[:-1])
                                     
                                     json_text = json_text.strip()
-                                    summary_data = json.loads(json_text)
+                                    
+                                    # JSON 정리 - 불필요한 공백과 줄바꿈 제거
+                                    json_text = re.sub(r'\s+', ' ', json_text)  # 연속된 공백을 하나로
+                                    json_text = re.sub(r'"\s*,\s*"', '", "', json_text)  # 쉼표 주변 정리
+                                    json_text = re.sub(r'{\s+', '{', json_text)  # 중괄호 뒤 공백 제거
+                                    json_text = re.sub(r'\s+}', '}', json_text)  # 중괄호 앞 공백 제거
+                                    json_text = re.sub(r'\[\s+', '[', json_text)  # 대괄호 뒤 공백 제거
+                                    json_text = re.sub(r'\s+\]', ']', json_text)  # 대괄호 앞 공백 제거
+                                    
+                                    # JSON 파싱 시도
+                                    try:
+                                        summary_data = json.loads(json_text)
+                                    except json.JSONDecodeError as e:
+                                        print(f"첫 번째 JSON 파싱 시도 실패: {e}")
+                                        # JSON 복구 시도
+                                        json_text = json_text.replace('\\"', '"')  # 이중 이스케이프 수정
+                                        json_text = re.sub(r'(?<!\\)"(?![,\]\}:\s])', '\\"', json_text)  # 문자열 내부 따옴표 이스케이프
+                                        summary_data = json.loads(json_text)
                                     
                                     ai_title_korean = summary_data.get('title', '')
                                     ai_summary_oneline = summary_data.get('summary', '')
@@ -1971,7 +1988,24 @@ if st.button("뉴스 분석 시작", type="primary"):
                                 json_text = "\n".join(json_text.split("\n")[:-1])
                             
                             json_text = json_text.strip()
-                            summary_data = json.loads(json_text)
+                            
+                            # JSON 정리 - 불필요한 공백과 줄바꿈 제거
+                            json_text = re.sub(r'\s+', ' ', json_text)  # 연속된 공백을 하나로
+                            json_text = re.sub(r'"\s*,\s*"', '", "', json_text)  # 쉼표 주변 정리
+                            json_text = re.sub(r'{\s+', '{', json_text)  # 중괄호 뒤 공백 제거
+                            json_text = re.sub(r'\s+}', '}', json_text)  # 중괄호 앞 공백 제거
+                            json_text = re.sub(r'\[\s+', '[', json_text)  # 대괄호 뒤 공백 제거
+                            json_text = re.sub(r'\s+\]', ']', json_text)  # 대괄호 앞 공백 제거
+                            
+                            # JSON 파싱 시도
+                            try:
+                                summary_data = json.loads(json_text)
+                            except json.JSONDecodeError as e:
+                                print(f"HTML 이메일 JSON 파싱 시도 실패: {e}")
+                                # JSON 복구 시도
+                                json_text = json_text.replace('\\"', '"')  # 이중 이스케이프 수정
+                                json_text = re.sub(r'(?<!\\)"(?![,\]\}:\s])', '\\"', json_text)  # 문자열 내부 따옴표 이스케이프
+                                summary_data = json.loads(json_text)
                             
                             korean_title = summary_data.get('title', '번역 제목 없음')
                             oneline_summary = summary_data.get('summary', '요약 없음')
